@@ -12,6 +12,7 @@ const CustomerList = lazy(() => import('./pages/customers/CustomerList'));
 const CouponManager = lazy(() => import('./pages/coupons/CouponManager'));
 const SpinConfig = lazy(() => import('./pages/spin/SpinConfig'));
 const Roles = lazy(() => import('./pages/settings/Roles'));
+const Settings = lazy(() => import('./pages/settings/Settings'));
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/coupons" element={<CouponManager />} />
           <Route path="/spin" element={<SpinConfig />} />
           <Route path="/settings/roles" element={<Roles />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>
