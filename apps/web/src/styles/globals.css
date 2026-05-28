@@ -1,0 +1,218 @@
+@import "tailwindcss";
+@source "../**/*.{js,ts,jsx,tsx}";
+@source "../../index.html";
+
+
+/* ============================================================
+   PawMart — Global Stylesheet (Light Theme)
+   ============================================================ */
+
+/* ── Google Fonts already loaded in index.html ──────────────── */
+
+/* ── CSS Custom Properties (Design Tokens) ──────────────────── */
+:root {
+  /* Brand */
+  --color-brand: #f97316;
+  --color-brand-dark: #ea580c;
+  --color-brand-light: #fff1e6;
+
+  /* Neutrals — Light Theme */
+  --color-bg: #f7f2ec;
+  --color-surface: #ffffff;
+  --color-surface-2: #f0ebe4;
+  --color-border: #e5ddd4;
+  --color-text: #2d2418;
+  --color-text-muted: #8a7e72;
+
+  /* Status */
+  --color-success: #22c55e;
+  --color-error: #ef4444;
+  --color-warning: #f59e0b;
+  --color-info: #3b82f6;
+
+  /* Typography */
+  --font-display: 'Nunito', sans-serif;
+  --font-body: 'Inter', 'DM Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Spacing */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 32px;
+  --radius-full: 9999px;
+
+  /* Shadows — Light Theme */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.1);
+  --shadow-glow: 0 0 32px rgba(249, 115, 22, 0.15);
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+  --transition-slow: 400ms ease;
+}
+
+/* ── Category Themes (CSS Variable Overrides) ─────────────────
+   Applied by adding data-theme="dogs|cats|fish|birds|small_pets"
+   to a parent element.
+   ─────────────────────────────────────────────────────────── */
+[data-theme='dogs'] {
+  --color-brand: #d97706;
+  --color-brand-dark: #b45309;
+  --color-brand-light: #fde68a;
+  --color-accent: #92400e;
+}
+[data-theme='cats'] {
+  --color-brand: #a855f7;
+  --color-brand-dark: #9333ea;
+  --color-brand-light: #e9d5ff;
+  --color-accent: #6d28d9;
+}
+[data-theme='fish'] {
+  --color-brand: #0ea5e9;
+  --color-brand-dark: #0284c7;
+  --color-brand-light: #bae6fd;
+  --color-accent: #0c4a6e;
+}
+[data-theme='birds'] {
+  --color-brand: #22c55e;
+  --color-brand-dark: #16a34a;
+  --color-brand-light: #bbf7d0;
+  --color-accent: #14532d;
+}
+[data-theme='small_pets'] {
+  --color-brand: #ec4899;
+  --color-brand-dark: #db2777;
+  --color-brand-light: #fbcfe8;
+  --color-accent: #831843;
+}
+
+/* ── Reset ───────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img,
+video {
+  max-width: 100%;
+  display: block;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-surface-2); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+/* ── Utility classes ─────────────────────────────────────────── */
+.container {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.5rem;
+  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  transition: all var(--transition-base);
+  cursor: pointer;
+}
+.btn-primary {
+  background: var(--color-brand);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(249, 115, 22, 0.3);
+}
+.btn-primary:hover {
+  background: var(--color-brand-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.4);
+}
+.btn-outline {
+  border: 2px solid var(--color-brand);
+  color: var(--color-brand);
+}
+.btn-outline:hover {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Spinner ─────────────────────────────────────────────────── */
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--color-border);
+  border-top-color: var(--color-brand);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Skeleton ────────────────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, var(--color-surface) 25%, var(--color-surface-2) 50%, var(--color-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
