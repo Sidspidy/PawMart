@@ -1,183 +1,280 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { NavLink } from 'react-router-dom';
+import React, { useState } from 'react';
 import { 
-  ShoppingBag, Search, Eye, ChevronRight, 
-  TrendingUp, Clock, Truck, CheckCircle2, XCircle 
+  Search, 
+  ChevronRight, 
+  Calendar,
+  X,
+  CheckCircle2,
+  Clock,
+  Truck,
+  Package,
+  Sparkles
 } from 'lucide-react';
 
-const MOCK_ORDERS = [
-  { id: 'PW-9801', name: 'Ava Mitchell 🐶', itemsCount: 3, total: 142.50, date: 'May 28, 2026', status: 'Completed', tier: 'Gold Paw' },
-  { id: 'PW-9802', name: 'Liam Davies 🐱', itemsCount: 1, total: 24.99, date: 'May 28, 2026', status: 'Shipped', tier: 'Silver Whiskers' },
-  { id: 'PW-9803', name: 'Sophia Smith 🦜', itemsCount: 2, total: 12.50, date: 'May 27, 2026', status: 'Pending', tier: 'Bronze Feather' },
-  { id: 'PW-9804', name: 'Oliver Johnson 🐰', itemsCount: 5, total: 85.20, date: 'May 26, 2026', status: 'Completed', tier: 'Gold Paw' },
-  { id: 'PW-9805', name: 'Emma Wilson 🐱', itemsCount: 1, total: 9.99, date: 'May 25, 2026', status: 'Cancelled', tier: 'Guest' },
+interface OrderItem {
+  name: string;
+  qty: number;
+  price: number;
+}
+
+interface Order {
+  id: string;
+  customerName: string;
+  petTag: string;
+  total: number;
+  status: 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered';
+  date: string;
+  items: OrderItem[];
+}
+
+const initialOrders: Order[] = [
+  { id: '2844', customerName: 'Oliver Vance', petTag: 'Cooper (Golden Retriever)', total: 74.50, status: 'Placed', date: '2026-05-28', items: [{ name: 'Sunset Premium Kibble', qty: 2, price: 29.99 }, { name: 'Rubber Chew Toy Bone', qty: 1, price: 14.52 }] },
+  { id: '2843', customerName: 'Sophia Miller', petTag: 'Luna (Persian Cat)', total: 148.00, status: 'Confirmed', date: '2026-05-28', items: [{ name: 'Luxury Scratching Post', qty: 1, price: 89.99 }, { name: 'Organic Salmon Treats', qty: 2, price: 29.00 }] },
+  { id: '2842', customerName: 'William Davies', petTag: 'Bubbles (Clown Fish)', total: 65.00, status: 'Shipped', date: '2026-05-27', items: [{ name: 'Silent Bio-Filter Tank', qty: 1, price: 65.00 }] },
+  { id: '2841', customerName: 'Charlotte Smith', petTag: 'Pip (Parrot)', total: 110.00, status: 'Delivered', date: '2026-05-26', items: [{ name: 'Sky-view Bird Cage Small', qty: 1, price: 110.00 }] },
 ];
 
-export default function OrderList() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('All');
+interface OrderListProps {
+  initialFilter?: 'All' | 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered';
+  onFilterChange?: (filter: 'All' | 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered') => void;
+}
 
-  const filteredOrders = MOCK_ORDERS.filter(o => {
-    const matchesSearch = o.name.toLowerCase().includes(searchQuery.toLowerCase()) || o.id.includes(searchQuery);
-    const matchesStatus = selectedStatus === 'All' || o.status === selectedStatus;
-    return matchesSearch && matchesStatus;
+export default function OrderList({ initialFilter = 'All', onFilterChange }: OrderListProps) {
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [activeTab, setActiveTab] = useState<'All' | 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered'>(initialFilter);
+  const [orderSearchTerm, setOrderSearchTerm] = useState('');
+
+  // Synchronize state when props change
+  React.useEffect(() => {
+    setActiveTab(initialFilter);
+  }, [initialFilter]);
+
+  const handleTabChange = (t: 'All' | 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered') => {
+    setActiveTab(t);
+    onFilterChange?.(t);
+  };
+
+  const updateStatus = (orderId: string, newStatus: 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered') => {
+    const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+    setOrders(updated);
+    if (selectedOrder && selectedOrder.id === orderId) {
+      setSelectedOrder({ ...selectedOrder, status: newStatus });
+    }
+  };
+
+  const getStatusStyle = (status: string) => {
+    switch (status) {
+      case 'Placed': return 'bg-blue-50 text-blue-600 border border-blue-100';
+      case 'Confirmed': return 'bg-amber-50 text-amber-600 border border-amber-100';
+      case 'Shipped': return 'bg-indigo-50 text-indigo-600 border border-indigo-100';
+      case 'Delivered': return 'bg-emerald-50 text-emerald-600 border border-emerald-100';
+      default: return 'bg-slate-50 text-slate-600';
+    }
+  };
+
+  const filteredOrders = orders.filter(o => {
+    const matchesTab = activeTab === 'All' || o.status === activeTab;
+    const matchesSearch = 
+      o.id.toLowerCase().includes(orderSearchTerm.toLowerCase()) || 
+      o.customerName.toLowerCase().includes(orderSearchTerm.toLowerCase());
+    return matchesTab && matchesSearch;
   });
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.4 }}
-      className="space-y-6 pb-12"
-    >
-      {/* HEADER SECTION */}
-      <div>
-        <h2 className="text-2xl font-extrabold text-[#3d2c54] flex items-center gap-2">
-          <ShoppingBag className="text-violet-500 fill-violet-100" />
-          Order Shipments
-        </h2>
-        <p className="text-xs text-[#705e8c]">Monitor purchase checkouts, dispatch logistics, and status pipelines</p>
-      </div>
-
-      {/* FILTER & STATS ROW */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        
-        <div className="glass-panel p-4 rounded-[22px] border border-white/60 shadow-soft flex items-center gap-3">
-          <div className="p-2.5 bg-violet-100 text-violet-600 rounded-xl"><Clock size={16} /></div>
-          <div>
-            <span className="text-[10px] font-bold text-[#9f8fb3] block">Pending dispatch</span>
-            <span className="text-sm font-extrabold text-[#3d2c54]">1 Order</span>
-          </div>
-        </div>
-
-        <div className="glass-panel p-4 rounded-[22px] border border-white/60 shadow-soft flex items-center gap-3">
-          <div className="p-2.5 bg-orange-100 text-orange-600 rounded-xl"><Truck size={16} /></div>
-          <div>
-            <span className="text-[10px] font-bold text-[#9f8fb3] block">In Transit</span>
-            <span className="text-sm font-extrabold text-[#3d2c54]">1 Order</span>
-          </div>
-        </div>
-
-        <div className="glass-panel p-4 rounded-[22px] border border-white/60 shadow-soft flex items-center gap-3">
-          <div className="p-2.5 bg-emerald-100 text-emerald-600 rounded-xl"><CheckCircle2 size={16} /></div>
-          <div>
-            <span className="text-[10px] font-bold text-[#9f8fb3] block">Completed today</span>
-            <span className="text-sm font-extrabold text-[#3d2c54]">2 Orders</span>
-          </div>
-        </div>
-
-        <div className="glass-panel p-4 rounded-[22px] border border-white/60 shadow-soft flex items-center gap-3">
-          <div className="p-2.5 bg-red-100 text-red-500 rounded-xl"><XCircle size={16} /></div>
-          <div>
-            <span className="text-[10px] font-bold text-[#9f8fb3] block">Failed checkouts</span>
-            <span className="text-sm font-extrabold text-[#3d2c54]">1 Order</span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* FILTER BUTTONS AND SEARCH BAR */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/40 p-4 rounded-[28px] border border-white/60">
-        
-        <div className="relative w-full md:w-[300px]">
+    <div className="space-y-6 relative">
+      
+      {/* Upper stats bar with search bar on left, tab filters on right */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Search */}
+        <div className="w-full md:w-80 flex items-center bg-white border-[3px] border-white rounded-2xl px-4 py-2.5 gap-2.5 shadow-clay-card">
+          <Search className="w-4 h-4 text-slate-400 shrink-0" />
           <input 
             type="text" 
-            placeholder="Search Order ID or customer..." 
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full clay-input pr-10 pl-5 text-xs py-2.5"
+            placeholder="Search order ID or customer..."
+            className="bg-transparent border-none outline-none text-xs w-full placeholder-slate-400 text-slate-700 font-extrabold"
+            value={orderSearchTerm}
+            onChange={(e) => setOrderSearchTerm(e.target.value)}
           />
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-violet-400" size={14} />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {['All', 'Pending', 'Shipped', 'Completed', 'Cancelled'].map(status => (
+        {/* Tab Filters */}
+        <div className="flex flex-wrap items-center bg-white/50 border-2 border-white rounded-2xl p-1 shadow-sm">
+          {['All', 'Placed', 'Confirmed', 'Shipped', 'Delivered'].map((t) => (
             <button
-              key={status}
-              onClick={() => setSelectedStatus(status)}
-              className={`
-                px-4 py-2 rounded-full text-xs font-bold transition-all
-                ${selectedStatus === status 
-                  ? 'bg-violet-600 text-white shadow-sm' 
-                  : 'bg-white/80 hover:bg-white text-[#705e8c] border border-violet-100/50'}
-              `}
+              key={t}
+              onClick={() => handleTabChange(t as any)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all ${
+                activeTab === t ? 'bg-[#8e78f5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
+              }`}
             >
-              {status === 'All' && '📋 All'}
-              {status === 'Pending' && '🕒 Pending'}
-              {status === 'Shipped' && '🚚 Shipped'}
-              {status === 'Completed' && '✅ Completed'}
-              {status === 'Cancelled' && '❌ Cancelled'}
+              {t}
             </button>
           ))}
         </div>
-
       </div>
 
-      {/* TABLE DATA LIST CONTAINER */}
-      <div className="glass-panel rounded-[32px] border border-white/60 shadow-soft overflow-hidden">
-        <div className="overflow-x-auto">
+      {/* Main split: Order logs + Drawer preview */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        
+        {/* Table list */}
+        <div className={`clay-table-container transition-all duration-300 ${selectedOrder ? 'xl:col-span-2' : 'xl:col-span-3'}`}>
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-violet-100">
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Order ID</th>
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Customer Name</th>
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Items Count</th>
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Checkout Cost</th>
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Order Date</th>
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Status</th>
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20 text-right">View details</th>
+              <tr>
+                <th className="clay-th w-16">S.No.</th>
+                <th className="clay-th">Order ID</th>
+                <th className="clay-th">Customer details</th>
+                <th className="clay-th text-center">Status</th>
+                <th className="clay-th">Total Amount</th>
+                <th className="clay-th">Purchase Date</th>
+                <th className="clay-th text-right">Details</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-violet-50">
-              {filteredOrders.map(order => (
-                <tr key={order.id} className="hover:bg-white/40 transition-colors">
-                  <td className="py-4 px-6 font-extrabold text-sm text-[#3d2c54]">{order.id}</td>
-                  <td className="py-4 px-6">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-extrabold text-sm text-[#3d2c54]">{order.name}</span>
-                      <span className="text-[10px] text-violet-500 font-bold bg-violet-100 px-2 py-0.2 rounded-full w-fit">
-                        {order.tier}
+            <tbody>
+              {filteredOrders.length > 0 ? (
+                filteredOrders.map((ord, index) => (
+                  <tr 
+                    key={ord.id} 
+                    onClick={() => setSelectedOrder(ord)}
+                    className={`hover:bg-slate-50/50 cursor-pointer transition-colors ${selectedOrder?.id === ord.id ? 'bg-[#8e78f5]/5' : ''}`}
+                  >
+                    <td className="clay-td font-black text-[#8e78f5]">{index + 1}</td>
+                    <td className="clay-td">
+                      <span className="font-extrabold text-[#8e78f5]">#PW-{ord.id}</span>
+                    </td>
+                    <td className="clay-td">
+                      <div>
+                        <h4 className="font-black text-sm text-slate-800">{ord.customerName}</h4>
+                        <span className="text-[10px] text-slate-400 font-extrabold">{ord.petTag}</span>
+                      </div>
+                    </td>
+                    <td className="clay-td text-center">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${getStatusStyle(ord.status)}`}>
+                        {ord.status}
                       </span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6 text-xs font-bold text-[#705e8c]">{order.itemsCount} articles</td>
-                  <td className="py-4 px-6 font-extrabold text-sm text-[#3d2c54]">${order.total.toFixed(2)}</td>
-                  <td className="py-4 px-6 text-xs font-bold text-[#705e8c]">{order.date}</td>
-                  <td className="py-4 px-6">
-                    <span className={`
-                      inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold
-                      ${order.status === 'Completed' && 'bg-green-50 text-green-500'}
-                      ${order.status === 'Shipped' && 'bg-blue-50 text-blue-500'}
-                      ${order.status === 'Pending' && 'bg-orange-50 text-orange-500'}
-                      ${order.status === 'Cancelled' && 'bg-red-50 text-red-500'}
-                    `}>
-                      <span className={`
-                        w-1.5 h-1.5 rounded-full
-                        ${order.status === 'Completed' && 'bg-green-400'}
-                        ${order.status === 'Shipped' && 'bg-blue-400'}
-                        ${order.status === 'Pending' && 'bg-orange-400'}
-                        ${order.status === 'Cancelled' && 'bg-red-400'}
-                      `} />
-                      {order.status}
-                    </span>
-                  </td>
-                  <td className="py-4 px-6 text-right">
-                    <NavLink
-                      to={`/orders/${order.id}`}
-                      className="inline-flex items-center gap-1 text-xs font-extrabold text-[#8a5cf5] hover:text-[#705e8c] bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-full transition-all"
-                    >
-                      Inspect
-                      <ChevronRight size={14} />
-                    </NavLink>
+                    </td>
+                    <td className="clay-td">
+                      <span className="font-black text-slate-800">${ord.total.toFixed(2)}</span>
+                    </td>
+                    <td className="clay-td">
+                      <span className="font-semibold text-slate-400">{ord.date}</span>
+                    </td>
+                    <td className="clay-td text-right">
+                      <ChevronRight className="w-4 h-4 text-slate-400 inline" />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="p-12 text-center text-slate-400 font-extrabold text-sm">
+                    No orders matching this category type.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Selected Order Timeline Drawer Details (Exactly matching neomorphism style) */}
+        {selectedOrder && (
+          <div className="clay-white-card rounded-[32px] p-6 space-y-6 flex flex-col justify-between border-[3px] border-white shadow-clay-card relative animate-slide-in">
+            {/* Close button */}
+            <button 
+              onClick={() => setSelectedOrder(null)}
+              className="absolute top-5 right-5 p-1.5 rounded-xl bg-slate-50 border border-slate-100 hover:bg-slate-100/50 text-slate-500 hover:text-slate-800 active:scale-95 transition-all shadow-sm"
+            >
+              <X className="w-4.5 h-4.5" />
+            </button>
+
+            <div>
+              <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest block">Detailed Logs</span>
+              <h3 className="font-black text-[#3b2b5c] text-lg mt-1">Order #PW-{selectedOrder.id}</h3>
+              <p className="text-[11px] text-slate-400 font-semibold">{selectedOrder.customerName} &middot; {selectedOrder.petTag}</p>
+            </div>
+
+            {/* Items list */}
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-3">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Purchased Items</span>
+              <div className="space-y-2 max-h-[120px] overflow-y-auto pr-1">
+                {selectedOrder.items.map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-xs font-bold text-slate-700">
+                    <span>{item.qty}x {item.name}</span>
+                    <span>${(item.price * item.qty).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="border-t border-slate-200/50 pt-2 flex items-center justify-between text-xs font-black text-[#8e78f5]">
+                <span>Total Amount</span>
+                <span>${selectedOrder.total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Tracking Status timeline */}
+            <div className="space-y-4">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Tracking timeline</span>
+              
+              <div className="space-y-3 pl-3.5 relative border-l-2 border-slate-100">
+                {/* Placed */}
+                <div className="relative">
+                  <div className={`absolute left-[-21px] top-[2px] w-3 h-3 rounded-full border-2 border-white shadow-sm shrink-0 ${
+                    ['Placed', 'Confirmed', 'Shipped', 'Delivered'].includes(selectedOrder.status) ? 'bg-emerald-400' : 'bg-slate-200'
+                  }`} />
+                  <span className="text-xs font-black text-slate-800 block">Placed</span>
+                  <span className="text-[10px] text-slate-400 font-semibold">Payment processed and registered</span>
+                </div>
+
+                {/* Confirmed */}
+                <div className="relative">
+                  <div className={`absolute left-[-21px] top-[2px] w-3 h-3 rounded-full border-2 border-white shadow-sm shrink-0 ${
+                    ['Confirmed', 'Shipped', 'Delivered'].includes(selectedOrder.status) ? 'bg-emerald-400' : 'bg-slate-200'
+                  }`} />
+                  <span className="text-xs font-black text-slate-800 block">Confirmed</span>
+                  <span className="text-[10px] text-slate-400 font-semibold">Order validated inside staff dashboard</span>
+                </div>
+
+                {/* Shipped */}
+                <div className="relative">
+                  <div className={`absolute left-[-21px] top-[2px] w-3 h-3 rounded-full border-2 border-white shadow-sm shrink-0 ${
+                    ['Shipped', 'Delivered'].includes(selectedOrder.status) ? 'bg-emerald-400' : 'bg-slate-200'
+                  }`} />
+                  <span className="text-xs font-black text-slate-800 block">Shipped</span>
+                  <span className="text-[10px] text-slate-400 font-semibold">Courier package generated & sent</span>
+                </div>
+
+                {/* Delivered */}
+                <div className="relative">
+                  <div className={`absolute left-[-21px] top-[2px] w-3 h-3 rounded-full border-2 border-white shadow-sm shrink-0 ${
+                    selectedOrder.status === 'Delivered' ? 'bg-emerald-400' : 'bg-slate-200'
+                  }`} />
+                  <span className="text-xs font-black text-slate-800 block">Delivered</span>
+                  <span className="text-[10px] text-slate-400 font-semibold">Package received by pet parent</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick status controls */}
+            <div className="border-t border-slate-50 pt-4 flex flex-wrap gap-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block w-full">Update Order Status</span>
+              {['Placed', 'Confirmed', 'Shipped', 'Delivered'].map((st) => (
+                <button
+                  key={st}
+                  onClick={() => updateStatus(selectedOrder.id, st as any)}
+                  className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all ${
+                    selectedOrder.status === st 
+                      ? 'bg-slate-700 text-white shadow-sm border border-slate-800' 
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
-    </motion.div>
+
+    </div>
   );
 }

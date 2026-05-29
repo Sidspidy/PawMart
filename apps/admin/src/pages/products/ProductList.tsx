@@ -1,268 +1,237 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { NavLink } from 'react-router-dom';
+import React, { useState } from 'react';
 import { 
-  Search, Plus, Filter, Grid, List, Edit2, Trash2, 
-  ChevronDown, Star, Package, Eye, AlertCircle, Sparkles 
+  Search, 
+  Plus, 
+  Filter, 
+  Trash2, 
+  Edit, 
+  ShoppingBag,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
+import ConfirmModal from '../../components/common/ConfirmModal';
 
-const MOCK_PRODUCTS = [
-  { id: '1', name: 'Golden Bone Chew 🦴', category: 'Dogs', price: 14.99, stock: 120, status: 'Active', rating: 4.8, imageColor: 'bg-orange-100 text-orange-600' },
-  { id: '2', name: 'Tuna Purrfection Pack 🐟', category: 'Cats', price: 8.99, stock: 85, status: 'Active', rating: 4.9, imageColor: 'bg-violet-100 text-violet-600' },
-  { id: '3', name: 'Rainbow Bird Swing 🌈', category: 'Birds', price: 12.50, stock: 42, status: 'Active', rating: 4.5, imageColor: 'bg-amber-100 text-amber-600' },
-  { id: '4', name: 'Premium Catnip Spray 🌱', category: 'Cats', price: 9.99, stock: 0, status: 'Out of Stock', rating: 4.7, imageColor: 'bg-emerald-100 text-emerald-600' },
-  { id: '5', name: 'Hamster Running Wheel 🎡', category: 'Small Pets', price: 19.99, stock: 28, status: 'Active', rating: 4.6, imageColor: 'bg-pink-100 text-pink-600' },
-  { id: '6', name: 'Orthopedic Dog Bed 🐕', category: 'Dogs', price: 49.99, stock: 14, status: 'Active', rating: 5.0, imageColor: 'bg-blue-100 text-blue-600' },
+interface Product {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  stock: number;
+  sales: number;
+  image: string;
+}
+
+interface ProductListProps {
+  onAddProduct: () => void;
+  onEditProduct: (product: Product) => void;
+}
+
+const mockProducts: Product[] = [
+  { id: '1', name: 'Sunset Premium Kibble', category: 'Dogs 🐕', price: 45.99, stock: 85, sales: 342, image: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&q=80&w=100' },
+  { id: '2', name: 'Golden Chew Toy Bone', category: 'Dogs 🐕', price: 12.50, stock: 150, sales: 850, image: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=100' },
+  { id: '3', name: 'Organic Salmon Cat Treats', category: 'Cats 🐈', price: 8.99, stock: 200, sales: 610, image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=100' },
+  { id: '4', name: 'Luxury Scratching Post', category: 'Cats 🐈', price: 89.99, stock: 25, sales: 124, image: 'https://images.unsplash.com/photo-1545249390-6bdfa286032f?auto=format&fit=crop&q=80&w=100' },
+  { id: '5', name: 'Silent Bio-Filter Tank', category: 'Fish 🐟', price: 65.00, stock: 40, sales: 98, image: 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&q=80&w=100' },
+  { id: '6', name: 'Sky-view Bird Cage Small', category: 'Birds 🐦', price: 110.00, stock: 15, sales: 48, image: 'https://images.unsplash.com/photo-1606567595334-d39973c37d cb?auto=format&fit=crop&q=80&w=100' },
 ];
 
-export default function ProductList() {
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [products, setProducts] = useState(MOCK_PRODUCTS);
+export default function ProductList({ onAddProduct, onEditProduct }: ProductListProps) {
+  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const [activeFilter, setActiveFilter] = useState('All');
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Custom ConfirmModal states
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<string | null>(null);
 
-  const categories = ['All', 'Dogs', 'Cats', 'Birds', 'Small Pets'];
-
-  // Filter products
-  const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to retire this pet accessory, Mia?")) {
-      setProducts(products.filter(p => p.id !== id));
-    }
+  const handleDeleteTrigger = (id: string) => {
+    setProductToDelete(id);
+    setIsConfirmOpen(true);
   };
 
+  const handleConfirmDelete = () => {
+    if (productToDelete) {
+      setProducts(products.filter(p => p.id !== productToDelete));
+    }
+    setIsConfirmOpen(false);
+    setProductToDelete(null);
+  };
+
+  const filteredProducts = products.filter(p => {
+    const matchesFilter = activeFilter === 'All' || p.category.includes(activeFilter);
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
+
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.4 }}
-      className="space-y-6 pb-12"
-    >
-      {/* HEADER SECTION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-extrabold text-[#3d2c54] flex items-center gap-2">
-            <Package className="text-violet-500 fill-violet-100" />
-            Product Catalog
-          </h2>
-          <p className="text-xs text-[#705e8c]">Manage and monitor boutique listings and inventory</p>
-        </div>
-
-        <NavLink
-          to="/products/new"
-          className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white rounded-full font-bold text-xs shadow-[0_8px_20px_-4px_rgba(138,92,245,0.3)] hover:scale-102 transition-transform self-start sm:self-auto cursor-pointer"
-        >
-          <Plus size={16} />
-          Add New Product
-        </NavLink>
-      </div>
-
-      {/* FILTER AND VIEW CONTROLS */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/40 p-4 rounded-[28px] border border-white/60 shadow-[0_8px_24px_rgba(138,92,245,0.03)]">
-        
+    <div className="space-y-6">
+      
+      {/* Search and Action Bar */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
         {/* Search */}
-        <div className="relative w-full md:w-[300px]">
+        <div className="w-full md:w-80 flex items-center bg-white border-[3px] border-white rounded-2xl px-4 py-2.5 gap-2.5 shadow-clay-card">
+          <Search className="w-4 h-4 text-slate-400 shrink-0" />
           <input 
             type="text" 
-            placeholder="Search products..." 
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full clay-input pr-10 pl-5 text-xs py-2.5"
+            placeholder="Search products..."
+            className="bg-transparent border-none outline-none text-xs w-full placeholder-slate-400 text-slate-700 font-extrabold"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-violet-400" size={14} />
         </div>
 
-        {/* Categories Chips list */}
-        <div className="flex flex-wrap items-center gap-2">
-          {categories.map(cat => (
+        {/* Categories Tab switches (Claymorphic) */}
+        <div className="flex flex-wrap items-center bg-white/50 border-2 border-white rounded-2xl p-1 shadow-sm">
+          {['All', 'Dogs', 'Cats', 'Fish', 'Birds'].map((cat) => (
             <button
               key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`
-                px-4 py-2 rounded-full text-xs font-bold transition-all duration-300
-                ${selectedCategory === cat 
-                  ? 'bg-violet-600 text-white shadow-[0_4px_12px_rgba(138,92,245,0.2)]' 
-                  : 'bg-white/80 hover:bg-white text-[#705e8c] border border-violet-100/50'}
-              `}
+              onClick={() => setActiveFilter(cat)}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                (cat === 'All' && activeFilter === 'All') || (activeFilter.includes(cat) && cat !== 'All')
+                  ? 'bg-[#8e78f5] text-white shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
             >
-              {cat === 'All' && '🐾 All'}
-              {cat === 'Dogs' && '🐶 Dogs'}
-              {cat === 'Cats' && '🐱 Cats'}
-              {cat === 'Birds' && '🦜 Birds'}
-              {cat === 'Small Pets' && '🐹 Small Pets'}
+              {cat}
             </button>
           ))}
         </div>
 
-        {/* View Toggle */}
-        <div className="flex items-center gap-1.5 bg-white/80 border border-violet-100 p-1.5 rounded-full self-end md:self-auto shrink-0">
-          <button 
-            onClick={() => setViewMode('table')}
-            className={`p-2 rounded-full transition-all ${viewMode === 'table' ? 'bg-violet-100 text-violet-600' : 'text-[#9f8fb3] hover:text-[#705e8c]'}`}
-            title="Table List View"
-          >
-            <List size={16} />
-          </button>
-          <button 
-            onClick={() => setViewMode('grid')}
-            className={`p-2 rounded-full transition-all ${viewMode === 'grid' ? 'bg-violet-100 text-violet-600' : 'text-[#9f8fb3] hover:text-[#705e8c]'}`}
-            title="Card Grid View"
-          >
-            <Grid size={16} />
-          </button>
-        </div>
-
+        {/* Add Product Button (tactile purple) */}
+        <button 
+          onClick={onAddProduct}
+          className="clay-btn clay-btn-purple px-5 py-3 text-xs w-full md:w-auto gap-2"
+        >
+          <Plus className="w-4 h-4 stroke-[2.5]" /> Add Product
+        </button>
       </div>
 
-      {/* PRODUCTS DISPLAY CONTAINER */}
-      <AnimatePresence mode="wait">
-        
-        {/* GRID VIEW LAYOUT */}
-        {viewMode === 'grid' ? (
-          <motion.div 
-            key="grid"
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
-            {filteredProducts.map(p => (
-              <motion.div 
-                key={p.id}
-                layoutId={`card-${p.id}`}
-                className="glass-panel p-5 rounded-[28px] border border-white/60 shadow-soft shadow-soft-hover relative overflow-hidden flex flex-col justify-between min-h-[220px]"
-              >
-                <div>
-                  <div className="flex justify-between items-start mb-4">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-bold shadow-inner ${p.imageColor}`}>
-                      {p.name.split(' ').pop()}
+      {/* Products Table Container */}
+      <div className="clay-table-container">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr>
+              <th className="clay-th w-16">S.No.</th>
+              <th className="clay-th">Product details</th>
+              <th className="clay-th">Category</th>
+              <th className="clay-th">Price</th>
+              <th className="clay-th text-center">Stock status</th>
+              <th className="clay-th text-center">Total Sales</th>
+              <th className="clay-th text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredProducts.length > 0 ? (
+              filteredProducts.map((product, index) => (
+                <tr key={product.id} className="hover:bg-slate-50/50 transition-colors">
+                  {/* S.No. */}
+                  <td className="clay-td font-black text-[#8e78f5]">{index + 1}</td>
+                  
+                  {/* Info */}
+                  <td className="clay-td">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl border border-slate-100 overflow-hidden shrink-0 shadow-sm bg-slate-50">
+                        <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div>
+                        <h4 className="font-black text-sm text-slate-800">{product.name}</h4>
+                        <span className="text-[10px] text-slate-400 font-extrabold">SKU: PM-0{product.id}0{product.id}</span>
+                      </div>
                     </div>
+                  </td>
 
-                    <div className="flex flex-col items-end gap-1.5">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${p.stock > 0 ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>
-                        {p.stock > 0 ? `Stock: ${p.stock}` : 'Out of Stock'}
-                      </span>
-                      <span className="text-[10px] text-[#9f8fb3] font-bold bg-white/60 px-2 py-0.5 rounded-full border border-violet-100">{p.category}</span>
+                  {/* Category */}
+                  <td className="clay-td">
+                    <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-50 text-purple-700">
+                      {product.category}
+                    </span>
+                  </td>
+
+                  {/* Price */}
+                  <td className="clay-td">
+                    <span className="font-extrabold text-slate-800">${product.price.toFixed(2)}</span>
+                  </td>
+
+                  {/* Stock */}
+                  <td className="clay-td text-center">
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${
+                      product.stock > 30 
+                        ? 'bg-emerald-50 text-emerald-600' 
+                        : product.stock > 0 
+                        ? 'bg-amber-50 text-amber-600' 
+                        : 'bg-rose-50 text-rose-600'
+                    }`}>
+                      {product.stock} left
+                    </span>
+                  </td>
+
+                  {/* Sales */}
+                  <td className="clay-td text-center">
+                    <span className="font-extrabold text-[#8e78f5]">{product.sales} orders</span>
+                  </td>
+
+                  {/* Actions */}
+                  <td className="clay-td text-right">
+                    <div className="flex items-center justify-end gap-2.5">
+                      <button 
+                        onClick={() => onEditProduct(product)}
+                        className="p-2 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 text-slate-600 active:scale-95 transition-all shadow-sm"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteTrigger(product.id)}
+                        className="p-2 bg-rose-50 border border-rose-200 rounded-xl hover:bg-rose-100 text-rose-600 active:scale-95 transition-all shadow-sm"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                  </div>
-
-                  <h3 className="font-extrabold text-sm text-[#3d2c54]">{p.name}</h3>
-
-                  <div className="flex items-center gap-1.5 mt-2">
-                    <Star size={14} className="text-amber-400 fill-amber-400" />
-                    <span className="text-xs font-bold text-[#705e8c]">{p.rating} / 5.0</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between border-t border-violet-100/40 pt-4 mt-4">
-                  <span className="text-lg font-extrabold text-[#3d2c54]">${p.price}</span>
-                  <div className="flex items-center gap-2">
-                    <NavLink 
-                      to={`/products/${p.id}/edit`}
-                      className="p-2 bg-violet-50 hover:bg-violet-100 text-violet-600 rounded-full transition-all"
-                    >
-                      <Edit2 size={14} />
-                    </NavLink>
-                    <button 
-                      onClick={() => handleDelete(p.id)}
-                      className="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-full transition-all cursor-pointer"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
-        ) : (
-          
-          /* TABLE LIST LAYOUT */
-          <motion.div 
-            key="table"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="glass-panel rounded-[32px] border border-white/60 shadow-soft overflow-hidden"
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-violet-100">
-                    <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Product</th>
-                    <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Category</th>
-                    <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Price</th>
-                    <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Stock Status</th>
-                    <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20 text-center">Rating</th>
-                    <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-violet-50">
-                  {filteredProducts.map(p => (
-                    <tr key={p.id} className="hover:bg-white/40 transition-colors">
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-md font-bold ${p.imageColor}`}>
-                            {p.name.split(' ').pop()}
-                          </div>
-                          <span className="font-extrabold text-sm text-[#3d2c54]">{p.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 text-xs font-bold text-[#705e8c]">{p.category}</td>
-                      <td className="py-4 px-6 font-extrabold text-sm text-[#3d2c54]">${p.price}</td>
-                      <td className="py-4 px-6">
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold ${p.stock > 0 ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${p.stock > 0 ? 'bg-green-400' : 'bg-red-400'}`} />
-                          {p.stock > 0 ? `${p.stock} Available` : 'Out of Stock'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 text-center">
-                        <div className="inline-flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
-                          <Star size={12} className="text-amber-400 fill-amber-400" />
-                          <span className="text-[10px] font-bold text-[#3d2c54]">{p.rating}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <NavLink 
-                            to={`/products/${p.id}/edit`}
-                            className="p-2 bg-violet-50 hover:bg-violet-100 text-violet-600 rounded-full transition-all"
-                            title="Edit details"
-                          >
-                            <Edit2 size={13} />
-                          </NavLink>
-                          <button 
-                            onClick={() => handleDelete(p.id)}
-                            className="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-full transition-all cursor-pointer"
-                            title="Delete"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {filteredProducts.length === 0 && (
-              <div className="p-12 text-center flex flex-col items-center justify-center gap-3">
-                <AlertCircle className="text-violet-300" size={36} />
-                <h4 className="font-extrabold text-sm text-[#3d2c54]">No matching pet products found!</h4>
-                <p className="text-xs text-[#705e8c]">Try expanding your search query or choosing another filter chip.</p>
-              </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={7} className="p-12 text-center text-slate-400 font-extrabold text-sm">
+                  No products found matching your search.
+                </td>
+              </tr>
             )}
+          </tbody>
+        </table>
+      </div>
 
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Pagination (Claymorphic) */}
+      <div className="flex items-center justify-between bg-white border-[3px] border-white p-4 rounded-3xl shadow-clay-card flex-wrap gap-3">
+        <span className="text-xs text-slate-400 font-bold">Showing 1 to {filteredProducts.length} of {filteredProducts.length} entries</span>
+        
+        <div className="flex items-center gap-2">
+          <button className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-400 hover:text-slate-700 active:scale-95 transition-all">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="px-3.5 py-1.5 bg-[#8e78f5] text-white text-xs font-black rounded-xl">1</span>
+          <button className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-400 hover:text-slate-700 active:scale-95 transition-all">
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
 
-    </motion.div>
+      {/* Custom Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={isConfirmOpen}
+        title="Delete Product 🗑️"
+        message="Are you sure you want to delete this product? It will be removed from the active inventory catalog."
+        confirmText="Delete"
+        cancelText="Cancel"
+        emoji="🗑️"
+        type="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          setIsConfirmOpen(false);
+          setProductToDelete(null);
+        }}
+      />
+
+    </div>
   );
 }

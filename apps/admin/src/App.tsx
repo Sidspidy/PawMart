@@ -1,40 +1,149 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import React, { useState } from 'react';
 import AdminLayout from './components/layout/AdminLayout';
+import Dashboard from './pages/Dashboard';
+import ProductList from './pages/products/ProductList';
+import ProductForm from './pages/products/ProductForm';
+import CategoryManager from './pages/categories/CategoryManager';
+import OrderList from './pages/orders/OrderList';
+import CustomerList from './pages/customers/CustomerList';
+import CouponManager from './pages/coupons/CouponManager';
+import SpinConfig from './pages/spin/SpinConfig';
+import Roles from './pages/settings/Roles';
+import Settings from './pages/settings/Settings';
 
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const ProductList = lazy(() => import('./pages/products/ProductList'));
-const ProductForm = lazy(() => import('./pages/products/ProductForm'));
-const CategoryManager = lazy(() => import('./pages/categories/CategoryManager'));
-const OrderList = lazy(() => import('./pages/orders/OrderList'));
-const OrderDetail = lazy(() => import('./pages/orders/OrderDetail'));
-const CustomerList = lazy(() => import('./pages/customers/CustomerList'));
-const CouponManager = lazy(() => import('./pages/coupons/CouponManager'));
-const SpinConfig = lazy(() => import('./pages/spin/SpinConfig'));
-const Roles = lazy(() => import('./pages/settings/Roles'));
-const Settings = lazy(() => import('./pages/settings/Settings'));
+interface Product {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  stock: number;
+  sales: number;
+  image: string;
+}
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState('Dashboard');
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isAddingProduct, setIsAddingProduct] = useState(false);
+
+  // Lifted Maintenance Mode state (sync to localStorage)
+  const [maintenanceMode, setMaintenanceMode] = useState<boolean>(() => {
+    return localStorage.getItem('maintenanceMode') === 'true';
+  });
+
+  // Track initial filter state for Orders tab (e.g. Placed from notifications)
+  const [ordersInitialFilter, setOrdersInitialFilter] = useState<'All' | 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered'>('All');
+
+  const handleEditProduct = (prod: Product) => {
+    setEditingProduct(prod);
+    setIsAddingProduct(false);
+    setActiveTab('Edit Product');
+  };
+
+  const handleAddProductTrigger = () => {
+    setEditingProduct(null);
+    setIsAddingProduct(true);
+    setActiveTab('Add Product');
+  };
+
+  const handleSaveProduct = () => {
+    alert('🎉 Product saved successfully inside the cozy 3D dashboard!');
+    setActiveTab('Products');
+    setIsAddingProduct(false);
+    setEditingProduct(null);
+  };
+
+  const handleCancelProduct = () => {
+    setActiveTab('Products');
+    setIsAddingProduct(false);
+    setEditingProduct(null);
+  };
+
+  const handleBellClick = () => {
+    setOrdersInitialFilter('Placed');
+    setActiveTab('Orders');
+  };
+
+  const handleSidebarTabClick = (tab: string) => {
+    if (tab === 'Orders') {
+      // Clicking standard menu sidebar resets default filter to All
+      setOrdersInitialFilter('All');
+    }
+    setActiveTab(tab);
+  };
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'Dashboard':
+        return <Dashboard />;
+      case 'Products':
+        return (
+          <ProductList 
+            onAddProduct={handleAddProductTrigger}
+            onEditProduct={handleEditProduct}
+          />
+        );
+      case 'Add Product':
+        return (
+          <ProductForm 
+            product={null}
+            onSave={handleSaveProduct}
+            onCancel={handleCancelProduct}
+          />
+        );
+      case 'Edit Product':
+        return (
+          <ProductForm 
+            product={editingProduct}
+            onSave={handleSaveProduct}
+            onCancel={handleCancelProduct}
+          />
+        );
+      case 'Categories':
+        return <CategoryManager />;
+      case 'Orders':
+        return (
+          <OrderList 
+            initialFilter={ordersInitialFilter} 
+            onFilterChange={setOrdersInitialFilter}
+          />
+        );
+      case 'Customers':
+        return <CustomerList />;
+      case 'Coupons':
+        return <CouponManager />;
+      case 'Spin Wheel':
+        return <SpinConfig />;
+      case 'Roles & Staff':
+        return <Roles />;
+      case 'Settings':
+        return (
+          <Settings 
+            maintenanceMode={maintenanceMode}
+            setMaintenanceMode={(val) => {
+              setMaintenanceMode(val);
+              localStorage.setItem('maintenanceMode', val ? 'true' : 'false');
+            }}
+          />
+        );
+      default:
+        return <Dashboard />;
+    }
+  };
+
+  const currentActiveSidebarTab = 
+    activeTab === 'Edit Product' || activeTab === 'Add Product' 
+      ? 'Products' 
+      : activeTab;
+
   return (
-    <Suspense fallback={<div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center' }}>Loading…</div>}>
-      <Routes>
-        <Route element={<AdminLayout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/products" element={<ProductList />} />
-          <Route path="/products/new" element={<ProductForm />} />
-          <Route path="/products/:id/edit" element={<ProductForm />} />
-          <Route path="/categories" element={<CategoryManager />} />
-          <Route path="/orders" element={<OrderList />} />
-          <Route path="/orders/:id" element={<OrderDetail />} />
-          <Route path="/customers" element={<CustomerList />} />
-          <Route path="/coupons" element={<CouponManager />} />
-          <Route path="/spin" element={<SpinConfig />} />
-          <Route path="/settings/roles" element={<Roles />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Route>
-      </Routes>
-    </Suspense>
+    <AdminLayout 
+      activeTab={currentActiveSidebarTab} 
+      setActiveTab={handleSidebarTabClick}
+      maintenanceMode={maintenanceMode}
+      onBellClick={handleBellClick}
+    >
+      {renderContent()}
+    </AdminLayout>
   );
 }

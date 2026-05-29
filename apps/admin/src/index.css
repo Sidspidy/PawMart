@@ -1,0 +1,262 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-sidebar: #8e78f5;
+  --color-brand-active: #9c87f2;
+  --color-dashboard-bg: #caaef6;
+  --color-card-cream: #faf6f0;
+  
+  --shadow-clay-card: inset 0 2px 4px rgba(255, 255, 255, 0.6), 0 10px 30px rgba(100, 50, 200, 0.04);
+  --shadow-clay-active: inset 0 3px 6px rgba(100, 50, 200, 0.15), 0 2px 4px rgba(255, 255, 255, 0.6);
+  --shadow-clay-header: inset 0 2px 4px rgba(255, 255, 255, 0.3), 0 15px 35px rgba(100, 50, 200, 0.08);
+  --shadow-clay-outer: 0 30px 70px rgba(100, 50, 200, 0.12);
+  --shadow-clay-btn: inset 0 2px 4px rgba(255, 255, 255, 0.5), 0 6px 12px rgba(100, 50, 200, 0.1);
+  --shadow-clay-btn-active: inset 0 4px 8px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(255, 255, 255, 0.3);
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background-color: var(--color-dashboard-bg);
+    color: #3b2b5c;
+    font-family: 'Nunito', 'Inter', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Custom subtle scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #f1f0f5;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #d4d0e6;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #b0a8cc;
+  }
+}
+
+/* Claymorphic 3D styling utilities matching the image precisely */
+.clay-sidebar {
+  background-color: var(--color-brand-sidebar);
+  box-shadow: inset -4px 0 10px rgba(0, 0, 0, 0.03), inset 4px 4px 8px rgba(255, 255, 255, 0.3), 0 20px 40px rgba(80, 40, 180, 0.1);
+}
+
+.clay-dashboard-shell {
+  background-color: var(--color-card-cream);
+  box-shadow: inset 4px 4px 10px rgba(255, 255, 255, 0.9), inset -4px -4px 10px rgba(0, 0, 0, 0.02), var(--shadow-clay-outer);
+}
+
+.clay-card {
+  background-color: #ffffff;
+  border: 3px solid #ffffff;
+  box-shadow: var(--shadow-clay-card);
+  border-radius: 28px;
+}
+
+.clay-card-purple {
+  background-color: #e2d9ff;
+  border: 3px solid #ffffff;
+  color: #3b238c;
+  box-shadow: var(--shadow-clay-card);
+}
+
+.clay-card-peach {
+  background-color: #ffdce0;
+  border: 3px solid #ffffff;
+  color: #8c233c;
+  box-shadow: var(--shadow-clay-card);
+}
+
+.clay-card-yellow {
+  background-color: #fff2cc;
+  border: 3px solid #ffffff;
+  color: #8c6723;
+  box-shadow: var(--shadow-clay-card);
+}
+
+.clay-card-blue {
+  background-color: #d0e8ff;
+  border: 3px solid #ffffff;
+  color: #23508c;
+  box-shadow: var(--shadow-clay-card);
+}
+
+.clay-header-banner {
+  background-color: #bca7fa;
+  border: 4px solid #ffffff;
+  box-shadow: var(--shadow-clay-header);
+}
+
+.clay-star-banner {
+  background-color: #bca7fa;
+  border: 4px solid #ffffff;
+  box-shadow: var(--shadow-clay-header);
+}
+
+.clay-active-button {
+  background-color: #fdfbf7;
+  color: var(--color-brand-sidebar);
+  box-shadow: var(--shadow-clay-active);
+  border: 2px solid #ffffff;
+}
+
+.clay-white-card {
+  background-color: #ffffff;
+  border: 3px solid #ffffff;
+  box-shadow: var(--shadow-clay-card);
+  border-radius: 28px;
+}
+
+/* Cozy 3D Buttons */
+.clay-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  border-radius: 16px;
+  border: 2px solid #ffffff;
+  box-shadow: var(--shadow-clay-btn);
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+}
+.clay-btn:active {
+  transform: scale(0.95);
+  box-shadow: var(--shadow-clay-btn-active);
+}
+
+.clay-btn-purple {
+  background-color: #8e78f5;
+  color: #ffffff;
+}
+.clay-btn-purple:hover {
+  background-color: #7d67e5;
+}
+
+.clay-btn-pink {
+  background-color: #e05a8a;
+  color: #ffffff;
+}
+.clay-btn-pink:hover {
+  background-color: #c94b79;
+}
+
+.clay-btn-peach {
+  background-color: #ffadc6;
+  color: #3b2b5c;
+}
+.clay-btn-peach:hover {
+  background-color: #ffa0ba;
+}
+
+.clay-btn-light {
+  background-color: #ffffff;
+  color: #8e78f5;
+  border: 2px solid #eae6f8;
+}
+.clay-btn-light:hover {
+  background-color: #faf9ff;
+}
+
+/* Cozy 3D Inputs */
+.clay-input {
+  background-color: #ffffff;
+  border: 2.5px solid #eae6f8;
+  border-radius: 16px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #4b3e6c;
+  outline: none;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s;
+}
+.clay-input:focus {
+  border-color: #8e78f5;
+  box-shadow: 0 0 10px rgba(142, 120, 245, 0.15), inset 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+/* Cozy 3D Table styling */
+.clay-table-container {
+  overflow-x: auto;
+  border-radius: 20px;
+  border: 3px solid #ffffff;
+  box-shadow: var(--shadow-clay-card);
+  background-color: #ffffff;
+}
+
+.clay-th {
+  background-color: #f6f3fc;
+  color: #8e78f5;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 14px 16px;
+  border-bottom: 2px solid #eae6f8;
+}
+
+.clay-td {
+  padding: 14px 16px;
+  border-bottom: 1.5px solid #faf9ff;
+  font-size: 13px;
+  font-weight: 700;
+  color: #4b3e6c;
+}
+
+/* Claymorphic 3D icon embossing */
+.clay-icon-wrap {
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.6), 0 4px 10px rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+}
+
+/* Custom animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(0.5deg); }
+}
+
+.animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+
+/* Scrollbar hide utility to keep elements scrollable but completely clean */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Dialog animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes popIn {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.animate-pop-in {
+  animation: popIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}

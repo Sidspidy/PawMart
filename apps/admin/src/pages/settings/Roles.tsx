@@ -1,263 +1,270 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { KeyRound, Shield, Users, UserCheck, Plus, Check, Trash2, Mail } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+  ShieldAlert, 
+  UserPlus, 
+  Trash2, 
+  Check, 
+  Sparkles,
+  Lock,
+  Eye
+} from 'lucide-react';
+import ConfirmModal from '../../components/common/ConfirmModal';
+import CustomSelect from '../../components/common/CustomSelect';
 
-const MOCK_STAFF = [
-  { id: '1', name: 'Mia 👋', role: 'Head Curator', email: 'mia@pawmart.com', access: ['All Access', 'Billing', 'Staff Edit'], avatar: '👩', bg: 'from-violet-100 to-pink-100' },
-  { id: '2', name: 'Dave 🚚', role: 'Logistics Manager', email: 'dave@pawmart.com', access: ['Orders Access', 'Shipping Print'], avatar: '👨', bg: 'from-orange-100 to-amber-100' },
-  { id: '3', name: 'Chloe 📦', role: 'Inventory Specialist', email: 'chloe@pawmart.com', access: ['Catalog Edit', 'Coupons Manage'], avatar: '👩', bg: 'from-blue-100 to-violet-100' },
-  { id: '4', name: 'Leo 👥', role: 'Support Curator', email: 'leo@pawmart.com', access: ['Customers View', 'Loyalty Adjust'], avatar: '👨', bg: 'from-emerald-100 to-teal-100' },
+interface StaffMember {
+  id: string;
+  name: string;
+  role: 'Super Admin' | 'Admin' | 'Manager' | 'Staff';
+  email: string;
+  permissions: {
+    products: boolean;
+    orders: boolean;
+    spinWheel: boolean;
+    staffLogs: boolean;
+  };
+}
+
+const mockStaff: StaffMember[] = [
+  { id: '1', name: 'Mia Vance', role: 'Super Admin', email: 'mia@pawmart.com', permissions: { products: true, orders: true, spinWheel: true, staffLogs: true } },
+  { id: '2', name: 'Lucas Cooper', role: 'Admin', email: 'lucas@pawmart.com', permissions: { products: true, orders: true, spinWheel: true, staffLogs: false } },
+  { id: '3', name: 'Zoe Parker', role: 'Manager', email: 'zoe@pawmart.com', permissions: { products: true, orders: true, spinWheel: false, staffLogs: false } },
+  { id: '4', name: 'Nolan Evans', role: 'Staff', email: 'nolan@pawmart.com', permissions: { products: false, orders: true, spinWheel: false, staffLogs: false } },
 ];
 
 export default function Roles() {
-  const [staff, setStaff] = useState(MOCK_STAFF);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [name, setName] = useState('');
-  const [role, setRole] = useState('Assistant Curator');
-  const [email, setEmail] = useState('');
-  const [selectedAccess, setSelectedAccess] = useState<string[]>([]);
-  const [successSaved, setSuccessSaved] = useState(false);
+  const [staffList, setStaffList] = useState<StaffMember[]>(mockStaff);
+  const [newName, setNewName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newRole, setNewRole] = useState<'Super Admin' | 'Admin' | 'Manager' | 'Staff'>('Staff');
 
-  const availablePrivileges = [
-    'Catalog Edit', 'Orders Access', 'Shipping Print', 
-    'Customers View', 'Loyalty Adjust', 'Coupons Manage'
+  // Custom modal states
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
+
+  const roleOptions = [
+    { value: 'Staff', label: 'Staff (Operations only)', emoji: '🧑‍💼' },
+    { value: 'Manager', label: 'Manager (Wheel, Promos)', emoji: '🧙‍♂️' },
+    { value: 'Admin', label: 'Admin (Full writes)', emoji: '👑' },
   ];
 
-  const handleTogglePrivilege = (priv: string) => {
-    if (selectedAccess.includes(priv)) {
-      setSelectedAccess(selectedAccess.filter(p => p !== priv));
-    } else {
-      setSelectedAccess([...selectedAccess, priv]);
-    }
+  const handleTogglePermission = (staffId: string, key: 'products' | 'orders' | 'spinWheel' | 'staffLogs') => {
+    setStaffList(staffList.map(member => {
+      if (member.id === staffId) {
+        return {
+          ...member,
+          permissions: {
+            ...member.permissions,
+            [key]: !member.permissions[key]
+          }
+        };
+      }
+      return member;
+    }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleAddStaff = (e: React.FormEvent) => {
     e.preventDefault();
-    const bgPresets = [
-      'from-violet-100 to-pink-100',
-      'from-orange-100 to-amber-100',
-      'from-blue-100 to-violet-100',
-      'from-emerald-100 to-teal-100'
-    ];
-    const newStaff = {
-      id: String(staff.length + 1),
-      name,
-      role,
-      email,
-      access: selectedAccess.length > 0 ? selectedAccess : ['View Only'],
-      avatar: Math.random() > 0.5 ? '👩' : '👨',
-      bg: bgPresets[Math.floor(Math.random() * bgPresets.length)]
+    if (!newName || !newEmail) return;
+
+    const newMember: StaffMember = {
+      id: (staffList.length + 1).toString(),
+      name: newName,
+      email: newEmail,
+      role: newRole,
+      permissions: {
+        products: newRole === 'Admin' || newRole === 'Super Admin',
+        orders: true,
+        spinWheel: newRole === 'Admin' || newRole === 'Super Admin' || newRole === 'Manager',
+        staffLogs: newRole === 'Super Admin'
+      }
     };
-    setStaff([...staff, newStaff]);
-    setSuccessSaved(true);
-    setTimeout(() => {
-      setSuccessSaved(false);
-      setShowAddForm(false);
-      setName('');
-      setEmail('');
-      setSelectedAccess([]);
-    }, 1500);
+
+    setStaffList([...staffList, newMember]);
+    setNewName('');
+    setNewEmail('');
+    setNewRole('Staff');
   };
 
-  const handleDelete = (id: string) => {
-    if (id === '1') {
-      alert("Mia, you cannot retire yourself! 😮");
-      return;
+  const handleDeleteTrigger = (id: string) => {
+    setStaffToDelete(id);
+    setIsConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (staffToDelete) {
+      setStaffList(staffList.filter(s => s.id !== staffToDelete));
     }
-    if (confirm("Remove this curator's dashboard credentials?")) {
-      setStaff(staff.filter(s => s.id !== id));
-    }
+    setIsConfirmOpen(false);
+    setStaffToDelete(null);
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.4 }}
-      className="space-y-6 pb-12 relative"
-    >
-      {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-extrabold text-[#3d2c54] flex items-center gap-2">
-            <KeyRound className="text-violet-500 fill-violet-100" />
-            Roles & Staff Credentials
-          </h2>
-          <p className="text-xs text-[#705e8c]">Manage active team curators, credential layers, and backend permissions</p>
-        </div>
+    <div className="space-y-6">
+      
 
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white rounded-full font-bold text-xs shadow-[0_8px_20px_-4px_rgba(138,92,245,0.3)] hover:scale-102 transition-transform cursor-pointer"
-        >
-          <Plus size={16} />
-          Invite Staff
-        </button>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* LEFT COLUMN: STAFF CARDS GRID */}
-        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 self-start">
-          {staff.map(member => (
-            <div 
-              key={member.id}
-              className="glass-panel p-5 rounded-[28px] border border-white/60 shadow-soft flex flex-col justify-between min-h-[220px]"
-            >
-              <div>
-                <div className="flex justify-between items-start mb-4">
-                  <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${member.bg} flex items-center justify-center text-xl font-bold shadow-inner`}>
-                    {member.avatar}
-                  </div>
-                  <button 
-                    onClick={() => handleDelete(member.id)}
-                    className="p-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-full transition-all cursor-pointer"
-                    title="Revoke access"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
+        {/* Staff registry Table */}
+        <div className="lg:col-span-2 clay-table-container">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr>
+                <th className="clay-th w-16">S.No.</th>
+                <th className="clay-th">Staff profile</th>
+                <th className="clay-th">Role Designation</th>
+                <th className="clay-th text-center">Catalog Access</th>
+                <th className="clay-th text-center">Orders Access</th>
+                <th className="clay-th text-center">Wheel Config</th>
+                <th className="clay-th text-right">Delete</th>
+              </tr>
+            </thead>
+            <tbody>
+              {staffList.map((member, index) => (
+                <tr key={member.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="clay-td font-black text-[#8e78f5]">{index + 1}</td>
+                  
+                  {/* Info */}
+                  <td className="clay-td">
+                    <div>
+                      <h4 className="font-black text-sm text-slate-800">{member.name}</h4>
+                      <span className="text-[10px] text-slate-400 font-bold block">{member.email}</span>
+                    </div>
+                  </td>
 
-                <h3 className="font-extrabold text-sm text-[#3d2c54]">{member.name}</h3>
-                <span className="text-[10px] text-violet-500 font-bold bg-violet-100/60 px-2 py-0.5 rounded-full inline-block mt-0.5">
-                  {member.role}
-                </span>
+                  {/* Role */}
+                  <td className="clay-td">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide border ${
+                      member.role === 'Super Admin' 
+                        ? 'bg-purple-100 text-purple-700 border-purple-200' 
+                        : member.role === 'Admin' 
+                        ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                        : member.role === 'Manager' 
+                        ? 'bg-amber-100 text-amber-700 border-amber-200' 
+                        : 'bg-slate-100 text-slate-600 border-slate-200'
+                    }`}>
+                      {member.role}
+                    </span>
+                  </td>
 
-                <div className="flex items-center gap-1.5 text-[10px] text-[#705e8c] font-bold mt-2">
-                  <Mail size={12} className="text-[#9f8fb3]" />
-                  {member.email}
-                </div>
-              </div>
+                  {/* Products Perm */}
+                  <td className="clay-td text-center">
+                    <button 
+                      onClick={() => handleTogglePermission(member.id, 'products')}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-all ${member.permissions.products ? 'bg-emerald-400' : 'bg-slate-200'}`}
+                      disabled={member.role === 'Super Admin'}
+                    >
+                      <div className={`w-4 h-4 rounded-full bg-white transition-all shadow-sm ${member.permissions.products ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                  </td>
 
-              {/* Access permissions list */}
-              <div className="flex flex-wrap gap-1.5 mt-4 pt-4 border-t border-violet-100/40">
-                {member.access.map((perm, i) => (
-                  <span 
-                    key={i} 
-                    className={`
-                      px-2 py-0.5 rounded-full text-[9px] font-extrabold shadow-sm border
-                      ${perm.includes('All') ? 'bg-orange-50 text-orange-500 border-orange-200' : 'bg-violet-50 text-violet-500 border-violet-200'}
-                    `}
-                  >
-                    {perm}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
+                  {/* Orders Perm */}
+                  <td className="clay-td text-center">
+                    <button 
+                      onClick={() => handleTogglePermission(member.id, 'orders')}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-all ${member.permissions.orders ? 'bg-emerald-400' : 'bg-slate-200'}`}
+                      disabled={member.role === 'Super Admin'}
+                    >
+                      <div className={`w-4 h-4 rounded-full bg-white transition-all shadow-sm ${member.permissions.orders ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                  </td>
+
+                  {/* SpinWheel Perm */}
+                  <td className="clay-td text-center">
+                    <button 
+                      onClick={() => handleTogglePermission(member.id, 'spinWheel')}
+                      className={`w-9 h-5 rounded-full p-0.5 transition-all ${member.permissions.spinWheel ? 'bg-emerald-400' : 'bg-slate-200'}`}
+                      disabled={member.role === 'Super Admin'}
+                    >
+                      <div className={`w-4 h-4 rounded-full bg-white transition-all shadow-sm ${member.permissions.spinWheel ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                  </td>
+
+                  {/* Delete actions */}
+                  <td className="clay-td text-right">
+                    <button 
+                      onClick={() => handleDeleteTrigger(member.id)}
+                      disabled={member.role === 'Super Admin'}
+                      className="p-2 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl hover:bg-rose-100 active:scale-95 transition-all disabled:opacity-30 disabled:hover:bg-rose-50 disabled:text-rose-400 shadow-sm"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        {/* RIGHT COLUMN: INVITE STAFF FORM */}
-        <div className="space-y-6">
-          <AnimatePresence mode="wait">
-            {showAddForm ? (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                className="glass-panel p-6 rounded-[32px] border border-white/60 shadow-soft space-y-4"
-              >
-                <h3 className="font-extrabold text-sm text-[#3d2c54] border-b border-violet-100/60 pb-3 flex items-center gap-2">
-                  <UserCheck size={16} className="text-orange-400" />
-                  Invitation Credentials
-                </h3>
+        {/* Staff credentials form */}
+        <div className="clay-white-card rounded-[32px] p-6 space-y-5 flex flex-col justify-between min-h-[380px]">
+          <div>
+            <h3 className="font-extrabold text-slate-800 text-base">New Staff Access</h3>
+            <p className="text-[11px] text-slate-400 font-semibold mt-0.5">Register staff credentials and select administrative levels</p>
+          </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-[#705e8c] ml-1">Staff Name</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Leo Henderson" 
-                      value={name}
-                      onChange={e => setName(e.target.value)}
-                      className="clay-input w-full text-xs"
-                      required
-                    />
-                  </div>
+          <form onSubmit={handleAddStaff} className="space-y-3.5 flex-1 mt-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Staff Name</label>
+              <input 
+                type="text" 
+                placeholder="e.g. Leo Carter"
+                className="w-full clay-input"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                required
+              />
+            </div>
 
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-[#705e8c] ml-1">Work Email</label>
-                    <input 
-                      type="email" 
-                      placeholder="leo@pawmart.com" 
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      className="clay-input w-full text-xs"
-                      required
-                    />
-                  </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Staff Email</label>
+              <input 
+                type="email" 
+                placeholder="leo@pawmart.com"
+                className="w-full clay-input"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                required
+              />
+            </div>
 
-                  {/* CHECKBOX PRIVILEGES */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-[#705e8c] ml-1 block">Permission Rights</label>
-                    <div className="grid grid-cols-1 gap-2 bg-white/40 p-3 rounded-[22px] border border-violet-100/50">
-                      {availablePrivileges.map(priv => {
-                        const hasIt = selectedAccess.includes(priv);
-                        return (
-                          <div 
-                            key={priv}
-                            onClick={() => handleTogglePrivilege(priv)}
-                            className="flex items-center justify-between text-[10px] font-bold text-[#705e8c] cursor-pointer p-1 hover:bg-violet-50/50 rounded-lg transition-all"
-                          >
-                            <span>{priv}</span>
-                            <div className={`w-4.5 h-4.5 border rounded flex items-center justify-center transition-all ${hasIt ? 'bg-violet-500 border-violet-500 text-white' : 'border-violet-200 bg-white'}`}>
-                              {hasIt && <Check size={10} strokeWidth={3} />}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+            <div className="space-y-1">
+              <CustomSelect
+                value={newRole}
+                onChange={setNewRole}
+                options={roleOptions}
+                label="Role Designation"
+              />
+            </div>
 
-                  <button 
-                    type="submit"
-                    className="w-full py-3 bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white rounded-full font-extrabold text-xs shadow-md hover:scale-101 cursor-pointer duration-200"
-                  >
-                    Issue Invitation
-                  </button>
-                </form>
+            <button 
+              type="submit"
+              className="w-full clay-btn clay-btn-purple py-3 text-xs gap-1.5 mt-2"
+            >
+              <UserPlus className="w-4 h-4 stroke-[2.5]" /> Register Staff
+            </button>
+          </form>
 
-              </motion.div>
-            ) : (
-              <div className="glass-panel p-6 rounded-[32px] border border-white/60 shadow-soft text-center py-10 space-y-4 flex flex-col items-center justify-center">
-                <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-500 flex items-center justify-center text-xl font-bold animate-float">
-                  🔑
-                </div>
-                <div>
-                  <h4 className="font-extrabold text-sm text-[#3d2c54]">Add team curators!</h4>
-                  <p className="text-[10px] text-[#705e8c] max-w-[180px] mx-auto mt-1 leading-relaxed">
-                    Set up credential access details for backend logistics managers or inventory keepers.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-extrabold text-xs rounded-full shadow-sm cursor-pointer"
-                >
-                  Invite Team Member
-                </button>
-              </div>
-            )}
-          </AnimatePresence>
-
-          {/* Success Overlay Alerts */}
-          <AnimatePresence>
-            {successSaved && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.9, y: -15 }}
-                className="p-3 bg-green-50 border border-green-200 text-green-600 rounded-[18px] text-[10px] font-bold flex items-center justify-center gap-1.5"
-              >
-                <Check size={12} strokeWidth={3} className="text-green-500" />
-                Invitation credential dispatched successfully!
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
       </div>
 
-    </motion.div>
+      {/* Custom Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={isConfirmOpen}
+        title="Revoke Staff Access 🛡️"
+        message="Are you sure you want to revoke this staff member's administrative panel access credentials? This action is permanent."
+        confirmText="Revoke"
+        cancelText="Cancel"
+        emoji="🛡️"
+        type="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          setIsConfirmOpen(false);
+          setStaffToDelete(null);
+        }}
+      />
+
+    </div>
   );
 }

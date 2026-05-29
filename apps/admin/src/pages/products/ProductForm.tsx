@@ -1,292 +1,226 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate, useParams, NavLink } from 'react-router-dom';
+import React, { useState } from 'react';
 import { 
-  ArrowLeft, Upload, Sparkles, Check, 
-  HelpCircle, Image as ImageIcon, Plus, Star 
+  ArrowLeft, 
+  UploadCloud, 
+  File, 
+  Check, 
+  Sparkles,
+  ShoppingBag
 } from 'lucide-react';
 
-export default function ProductForm() {
-  const navigate = useNavigate();
-  const { id } = useParams();
-  const isEdit = !!id;
+interface Product {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  stock: number;
+  sales: number;
+  image: string;
+}
 
-  const [name, setName] = useState(isEdit ? 'Golden Bone Chew 🦴' : '');
-  const [category, setCategory] = useState(isEdit ? 'Dogs' : 'Dogs');
-  const [price, setPrice] = useState(isEdit ? '14.99' : '');
-  const [stock, setStock] = useState(isEdit ? '120' : '');
-  const [desc, setDesc] = useState(isEdit ? 'An extremely robust chew toy coated with sweet organic honey scent to keep your golden retrieve busy for hours!' : '');
-  
-  // Drag & drop states
-  const [isDragging, setIsDragging] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<string | null>(isEdit ? 'golden_chew.jpg' : null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successSaved, setSuccessSaved] = useState(false);
+interface ProductFormProps {
+  product?: Product | null;
+  onSave: () => void;
+  onCancel: () => void;
+}
 
-  const handleDrag = (e: React.DragEvent) => {
+export default function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
+  const [name, setName] = useState(product ? product.name : '');
+  const [category, setCategory] = useState(product ? product.category : 'Dogs 🐕');
+  const [price, setPrice] = useState(product ? product.price.toString() : '');
+  const [stock, setStock] = useState(product ? product.stock.toString() : '');
+  const [description, setDescription] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<string | null>(product ? product.image : null);
+
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setIsDragging(true);
-    } else {
-      setIsDragging(false);
-    }
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setUploadedFile(e.dataTransfer.files[0].name);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setUploadedFile(e.target.files[0].name);
-    }
+    setIsDragOver(false);
+    // Simulate upload
+    setUploadedFile('https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=150');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setSuccessSaved(true);
-      
-      setTimeout(() => {
-        setSuccessSaved(false);
-        navigate('/products');
-      }, 2000);
-    }, 1500);
+    if (!name || !price || !stock) {
+      alert('Please fill out all required fields!');
+      return;
+    }
+    // Save action
+    onSave();
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.4 }}
-      className="space-y-6 pb-12 max-w-4xl mx-auto"
-    >
-      {/* HEADER SECTION */}
+    <div className="space-y-6">
+      
+      {/* Header action */}
       <div className="flex items-center gap-3">
-        <NavLink 
-          to="/products"
-          className="p-3 bg-white hover:bg-violet-50 text-[#705e8c] border border-violet-100 rounded-full flex items-center justify-center shadow-soft"
+        <button 
+          onClick={onCancel}
+          className="p-2.5 bg-white border-2 border-white rounded-2xl text-[#8e78f5] hover:bg-slate-50 shadow-sm active:scale-95 transition-all"
         >
-          <ArrowLeft size={16} />
-        </NavLink>
+          <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+        </button>
         <div>
-          <h2 className="text-2xl font-extrabold text-[#3d2c54]">
-            {isEdit ? 'Edit Product Details' : 'Add New Pet Accessory'}
+          <h2 className="text-xl font-black text-slate-800 flex items-center gap-1.5">
+            {product ? 'Edit Product 📝' : 'Add New Product 🐕'}
           </h2>
-          <p className="text-xs text-[#705e8c]">Define specs, inventory units, and media assets</p>
+          <p className="text-xs text-slate-400 font-semibold">Publish new stock assets to the storefront directory</p>
         </div>
       </div>
 
+      {/* Main split grid */}
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* LEFT COLUMN: DRAG & DROP MEDIA UPLOADER */}
-        <div className="space-y-6">
-          <div className="glass-panel p-6 rounded-[32px] border border-white/60 shadow-soft space-y-4">
-            <h3 className="font-extrabold text-sm text-[#3d2c54] flex items-center gap-2">
-              <ImageIcon size={16} className="text-orange-400" />
-              Product Photo
-            </h3>
+        {/* Form detail card */}
+        <div className="lg:col-span-2 clay-white-card rounded-[32px] p-6 md:p-8 space-y-5">
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Product Name *</label>
+            <input 
+              type="text" 
+              placeholder="e.g. Sunset Premium Chew Toy"
+              className="w-full clay-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
 
-            {/* DRAG AND DROP ZONE */}
-            <div 
-              onDragEnter={handleDrag}
-              onDragOver={handleDrag}
-              onDragLeave={handleDrag}
-              onDrop={handleDrop}
-              className={`
-                border-2 border-dashed rounded-[24px] p-6 text-center cursor-pointer transition-all duration-300 min-h-[220px] flex flex-col items-center justify-center relative overflow-hidden
-                ${isDragging ? 'border-violet-600 bg-violet-50/50 scale-102' : 'border-violet-200 hover:border-violet-400 bg-white/40'}
-              `}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="space-y-1.5">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Category *</label>
+              <select 
+                className="w-full clay-input bg-white appearance-none cursor-pointer"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="Dogs 🐕">Dogs 🐕</option>
+                <option value="Cats 🐈">Cats 🐈</option>
+                <option value="Fish 🐟">Fish 🐟</option>
+                <option value="Birds 🐦">Birds 🐦</option>
+                <option value="Small Pets 🐹">Small Pets 🐹</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Price ($) *</label>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  placeholder="29.99"
+                  className="w-full clay-input"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Stock *</label>
+                <input 
+                  type="number" 
+                  placeholder="50"
+                  className="w-full clay-input"
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-slate-500 uppercase tracking-wider block">Product Description</label>
+            <textarea 
+              rows={4}
+              placeholder="Write a playful description outlining pet benefits, ingredients, or durability features..."
+              className="w-full clay-input resize-none py-3"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-3.5 pt-4 border-t border-slate-50">
+            <button 
+              type="submit"
+              className="clay-btn clay-btn-purple px-6 py-3.5 text-xs gap-1.5 shadow-md flex-1 sm:flex-none"
             >
-              <input 
-                type="file" 
-                id="file-upload" 
-                className="hidden" 
-                onChange={handleFileChange}
-                accept="image/*"
-              />
-
-              <label htmlFor="file-upload" className="w-full h-full flex flex-col items-center justify-center cursor-pointer">
-                {uploadedFile ? (
-                  <div className="space-y-3">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-100 to-pink-100 flex items-center justify-center mx-auto shadow-sm">
-                      <Sparkles className="text-violet-500 animate-pulse" size={24} />
-                    </div>
-                    <div>
-                      <span className="text-xs font-extrabold text-[#3d2c54] block truncate max-w-[150px] mx-auto">
-                        {uploadedFile}
-                      </span>
-                      <span className="text-[10px] text-green-500 font-extrabold mt-0.5 inline-block">
-                        File uploaded successfully!
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-bold text-[#9f8fb3] underline hover:text-[#705e8c]">
-                      Change file
-                    </span>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="p-3 bg-violet-100/50 rounded-2xl w-fit mx-auto text-violet-500">
-                      <Upload size={22} className="animate-bounce" />
-                    </div>
-                    <div>
-                      <span className="text-xs font-extrabold text-[#3d2c54] block">
-                        Drag & Drop Product Image
-                      </span>
-                      <span className="text-[10px] text-[#9f8fb3] block mt-1">
-                        or click to browse local folders
-                      </span>
-                    </div>
-                    <span className="text-[9px] text-[#9f8fb3] bg-violet-50 px-2 py-0.5 rounded-full inline-block mt-2">
-                      PNG, JPG up to 5MB
-                    </span>
-                  </div>
-                )}
-              </label>
-            </div>
-            
-            <div className="p-3.5 bg-[#ffd8be]/20 rounded-2xl border border-[#ffd8be]/30 flex items-start gap-2.5">
-              <Star size={16} className="text-orange-400 shrink-0 mt-0.5 fill-orange-400" />
-              <p className="text-[10px] text-[#705e8c] font-medium leading-relaxed">
-                <strong>Curator Tip:</strong> Playful 3D clay illustrations with soft backgrounds yield 25% higher product details click-through rates.
-              </p>
-            </div>
+              <Check className="w-4 h-4 stroke-[2.5]" /> Save Product
+            </button>
+            <button 
+              type="button"
+              onClick={onCancel}
+              className="clay-btn clay-btn-light px-6 py-3.5 text-xs flex-1 sm:flex-none"
+            >
+              Cancel
+            </button>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: DETAILED INFO INPUTS */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="glass-panel p-6 rounded-[32px] border border-white/60 shadow-soft space-y-5">
-            <h3 className="font-extrabold text-sm text-[#3d2c54] border-b border-violet-100/60 pb-3">
-              Technical Details
-            </h3>
-
-            <div className="space-y-4">
-              
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-[#705e8c] ml-1">Product Title</label>
-                <input 
-                  type="text" 
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="e.g. Honey Chew Toy"
-                  className="clay-input w-full"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-[#705e8c] ml-1">Category</label>
-                  <select 
-                    value={category}
-                    onChange={e => setCategory(e.target.value)}
-                    className="clay-input w-full font-bold"
-                  >
-                    <option>Dogs</option>
-                    <option>Cats</option>
-                    <option>Birds</option>
-                    <option>Small Pets</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-[#705e8c] ml-1">Unit Price ($)</label>
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    value={price}
-                    onChange={e => setPrice(e.target.value)}
-                    placeholder="12.99"
-                    className="clay-input w-full"
-                    required
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-[#705e8c] ml-1">Stock Units</label>
-                  <input 
-                    type="number" 
-                    value={stock}
-                    onChange={e => setStock(e.target.value)}
-                    placeholder="100"
-                    className="clay-input w-full"
-                    required
-                  />
-                </div>
-
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-1">
-                  <label className="text-xs font-bold text-[#705e8c] ml-1">Description</label>
-                  <HelpCircle size={12} className="text-violet-400" />
-                </div>
-                <textarea 
-                  rows={4}
-                  value={desc}
-                  onChange={e => setDesc(e.target.value)}
-                  placeholder="Tell our pet owners what makes this item special!"
-                  className="clay-input w-full resize-none"
-                  required
-                />
-              </div>
-
-            </div>
+        {/* Upload media card */}
+        <div className="clay-white-card rounded-[32px] p-6 space-y-6 flex flex-col justify-between">
+          <div>
+            <h3 className="font-extrabold text-slate-800 text-base">Product Image</h3>
+            <p className="text-[11px] text-slate-400 font-semibold mt-0.5">Drag & drop high-definition item photos</p>
           </div>
 
-          {/* Form Actions */}
-          <div className="flex items-center justify-end gap-3">
-            <NavLink 
-              to="/products"
-              className="px-6 py-3 bg-white text-[#705e8c] hover:bg-violet-50 rounded-full font-extrabold text-xs border border-violet-100"
-            >
-              Cancel Changes
-            </NavLink>
-
-            <button 
-              type="submit"
-              disabled={isSubmitting}
-              className="px-6 py-3 bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white rounded-full font-extrabold text-xs shadow-[0_8px_20px_-4px_rgba(138,92,245,0.3)] hover:shadow-[0_12px_25px_-4px_rgba(138,92,245,0.4)] disabled:opacity-50 cursor-pointer duration-200"
-            >
-              {isSubmitting ? 'Saving Specs...' : isEdit ? 'Update Details' : 'Curate Listing'}
-            </button>
+          {/* Uploader panel */}
+          <div 
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`border-[3px] border-dashed rounded-3xl p-6 text-center flex flex-col items-center justify-center min-h-[220px] transition-all cursor-pointer ${
+              isDragOver 
+                ? 'border-[#8e78f5] bg-purple-50/30' 
+                : uploadedFile 
+                ? 'border-emerald-200 bg-emerald-50/10' 
+                : 'border-slate-200 bg-slate-50/50 hover:bg-slate-50'
+            }`}
+            onClick={() => setUploadedFile('https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=150')}
+          >
+            {uploadedFile ? (
+              <div className="space-y-4">
+                <div className="w-28 h-28 rounded-2xl border-2 border-white overflow-hidden shadow-md mx-auto bg-white">
+                  <img src={uploadedFile} alt="Preview" className="w-full h-full object-cover" />
+                </div>
+                <span className="text-[11px] text-emerald-600 font-black block">✓ Image upload complete</span>
+                <span className="text-[10px] text-slate-400 font-bold block">(Click to replace)</span>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-slate-100 flex items-center justify-center shadow-sm text-[#8e78f5] mx-auto animate-float">
+                  <UploadCloud className="w-5 h-5 stroke-[2.5]" />
+                </div>
+                <div>
+                  <span className="text-xs font-black text-[#8e78f5] block">Choose a file or drag here</span>
+                  <span className="text-[10px] text-slate-400 font-bold block mt-1">PNG, JPG, JPEG up to 5MB</span>
+                </div>
+              </div>
+            )}
           </div>
 
+          {/* Quick instructions */}
+          <div className="bg-[#e2d9ff]/30 border border-[#e2d9ff]/50 rounded-2xl p-4 flex items-start gap-3">
+            <div className="text-lg filter select-none shrink-0">💡</div>
+            <p className="text-[11px] text-[#523d85] font-extrabold leading-snug">
+              Clear items with white backdrops look most premium in the store! Standard catalog display will prioritize clean layout slots.
+            </p>
+          </div>
         </div>
 
       </form>
 
-      {/* Dynamic Success Notifications Pop */}
-      <AnimatePresence>
-        {successSaved && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9, y: 30 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: -30 }}
-            className="fixed bottom-6 right-6 p-4 bg-white border border-green-200 text-[#3d2c54] rounded-[24px] shadow-2xl flex items-center gap-3 z-[999]"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-green-100 flex items-center justify-center text-green-500">
-              <Check size={18} strokeWidth={3} />
-            </div>
-            <div>
-              <h4 className="text-xs font-extrabold">Changes saved! 🐾</h4>
-              <p className="text-[10px] text-[#705e8c] mt-0.5">Redirecting to catalog catalog.</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-    </motion.div>
+    </div>
   );
 }

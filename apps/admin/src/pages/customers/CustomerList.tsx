@@ -1,126 +1,161 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Users, Search, Award, Star, Mail, Calendar } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+  Search, 
+  Users, 
+  Sparkles,
+  Award,
+  Heart,
+  ChevronRight,
+  HeartHandshake
+} from 'lucide-react';
 
-const MOCK_CUSTOMERS = [
-  { id: '1', name: 'Ava Mitchell', email: 'ava.mitchell@gmail.com', pet: 'Dog (Golden Retriever)', points: 1540, spent: 482.50, joinDate: 'Feb 12, 2026', avatar: '👩', tier: 'Gold Paw' },
-  { id: '2', name: 'Liam Davies', email: 'liam.davies@outlook.com', pet: 'Cat (Persian)', points: 890, spent: 210.99, joinDate: 'Mar 05, 2026', avatar: '👨', tier: 'Silver Whiskers' },
-  { id: '3', name: 'Sophia Smith', email: 'sophia.smith@yahoo.com', pet: 'Bird (Budgerigar)', points: 350, spent: 89.50, joinDate: 'Apr 20, 2026', avatar: '👩', tier: 'Bronze Feather' },
-  { id: '4', name: 'Oliver Johnson', email: 'oliver.j@gmail.com', pet: 'Dog (Labrador)', points: 2100, spent: 752.40, joinDate: 'Jan 08, 2026', avatar: '👨', tier: 'Gold Paw' },
-  { id: '5', name: 'Emma Wilson', email: 'emma.w@gmail.com', pet: 'Cat (Siamese)', points: 120, spent: 34.99, joinDate: 'May 14, 2026', avatar: '👩', tier: 'Guest' },
+interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  points: number;
+  ordersCount: number;
+  totalSpent: number;
+  avatar: string;
+  petName: string;
+  petSpecies: string;
+}
+
+const mockCustomers: Customer[] = [
+  { id: '1', name: 'Oliver Vance', email: 'oliver@gmail.com', points: 340, ordersCount: 8, totalSpent: 420.50, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100', petName: 'Cooper 🦮', petSpecies: 'Golden Retriever' },
+  { id: '2', name: 'Sophia Miller', email: 'sophia@gmail.com', points: 580, ordersCount: 12, totalSpent: 980.00, avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100', petName: 'Luna 🐈', petSpecies: 'Persian Cat' },
+  { id: '3', name: 'William Davies', email: 'will@gmail.com', points: 120, ordersCount: 3, totalSpent: 195.00, avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100', petName: 'Bubbles 🐠', petSpecies: 'Clown Fish' },
+  { id: '4', name: 'Charlotte Smith', email: 'char@gmail.com', points: 250, ordersCount: 6, totalSpent: 480.00, avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=100', petName: 'Pip 🦜', petSpecies: 'Parrot' },
 ];
 
 export default function CustomerList() {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredCustomers = MOCK_CUSTOMERS.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    c.pet.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredCustomers = mockCustomers.filter(c => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.petName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.4 }}
-      className="space-y-6 pb-12"
-    >
-      {/* HEADER */}
-      <div>
-        <h2 className="text-2xl font-extrabold text-[#3d2c54] flex items-center gap-2">
-          <Users className="text-violet-500 fill-violet-100" />
-          Customer Database
-        </h2>
-        <p className="text-xs text-[#705e8c]">Monitor pet owners, loyalty points, and purchase preferences</p>
-      </div>
-
-      {/* FILTER CONTROLS */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/40 p-4 rounded-[28px] border border-white/60">
-        <div className="relative w-full md:w-[350px]">
+    <div className="space-y-6">
+      
+      {/* Upper action bar with search */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="w-full sm:w-72 flex items-center bg-white border-[3px] border-white rounded-2xl px-4 py-2.5 gap-2.5 shadow-clay-card">
+          <Search className="w-4 h-4 text-slate-400 shrink-0" />
           <input 
             type="text" 
-            placeholder="Search owners or pet types..." 
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full clay-input pr-10 pl-5 text-xs py-2.5"
+            placeholder="Search name or pet..."
+            className="bg-transparent border-none outline-none text-xs w-full placeholder-slate-400 text-slate-700 font-extrabold"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-violet-400" size={14} />
         </div>
       </div>
 
-      {/* CUSTOMERS TABLE */}
-      <div className="glass-panel rounded-[32px] border border-white/60 shadow-soft overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-violet-100">
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Customer Profile</th>
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Pet preference</th>
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Loyalty Balance</th>
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Total Spent</th>
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Registration Date</th>
-                <th className="py-4 px-6 text-xs font-bold uppercase tracking-wider text-[#9f8fb3] bg-white/20">Status Tier</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-violet-50">
-              {filteredCustomers.map(c => (
-                <tr key={c.id} className="hover:bg-white/40 transition-colors">
-                  <td className="py-4 px-6">
+      {/* Customer directory Table */}
+      <div className="clay-table-container">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr>
+              <th className="clay-th w-16">S.No.</th>
+              <th className="clay-th">Member profile</th>
+              <th className="clay-th">Pet details</th>
+              <th className="clay-th text-center">Loyalty Points</th>
+              <th className="clay-th text-center">Orders Placed</th>
+              <th className="clay-th">Total Spend</th>
+              <th className="clay-th text-right">Loyalty rank</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredCustomers.length > 0 ? (
+              filteredCustomers.map((cust, index) => (
+                <tr key={cust.id} className="hover:bg-slate-50/50 transition-colors">
+                  {/* S.No. */}
+                  <td className="clay-td font-black text-[#8e78f5]">{index + 1}</td>
+                  
+                  {/* Info */}
+                  <td className="clay-td">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-md shadow-inner">
-                        {c.avatar}
+                      <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-100 shadow-sm shrink-0 bg-slate-100">
+                        <img src={cust.avatar} alt={cust.name} className="w-full h-full object-cover" />
                       </div>
                       <div>
-                        <span className="font-extrabold text-sm text-[#3d2c54] block">{c.name}</span>
-                        <span className="text-[10px] text-[#9f8fb3] font-bold flex items-center gap-1 mt-0.5">
-                          <Mail size={10} />
-                          {c.email}
-                        </span>
+                        <h4 className="font-black text-sm text-slate-800">{cust.name}</h4>
+                        <span className="text-[10px] text-slate-400 font-bold block">{cust.email}</span>
                       </div>
                     </div>
                   </td>
-                  <td className="py-4 px-6">
-                    <span className={`
-                      inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold
-                      ${c.pet.includes('Dog') && 'bg-orange-50 text-orange-500'}
-                      ${c.pet.includes('Cat') && 'bg-violet-50 text-violet-500'}
-                      ${c.pet.includes('Bird') && 'bg-amber-50 text-amber-500'}
-                    `}>
-                      {c.pet.includes('Dog') ? '🐶' : c.pet.includes('Cat') ? '🐱' : '🦜'}
-                      {c.pet}
+
+                  {/* Pet details */}
+                  <td className="clay-td">
+                    <div>
+                      <h5 className="font-black text-xs text-purple-700 flex items-center gap-1">
+                        <Heart className="w-3 h-3 fill-purple-500 text-purple-500" /> {cust.petName}
+                      </h5>
+                      <span className="text-[10px] text-slate-400 font-extrabold">{cust.petSpecies}</span>
+                    </div>
+                  </td>
+
+                  {/* Loyalty Points */}
+                  <td className="clay-td text-center">
+                    <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-xs font-black">
+                      ⭐ {cust.points} pts
                     </span>
                   </td>
-                  <td className="py-4 px-6 font-extrabold text-sm text-violet-600">
-                    {c.points} pts
+
+                  {/* Orders */}
+                  <td className="clay-td text-center">
+                    <span className="font-extrabold text-slate-800">{cust.ordersCount} packages</span>
                   </td>
-                  <td className="py-4 px-6 font-extrabold text-sm text-[#3d2c54]">
-                    ${c.spent.toFixed(2)}
+
+                  {/* Spend */}
+                  <td className="clay-td">
+                    <span className="font-black text-[#8e78f5]">${cust.totalSpent.toFixed(2)}</span>
                   </td>
-                  <td className="py-4 px-6 text-xs font-bold text-[#705e8c]">
-                    <span className="flex items-center gap-1">
-                      <Calendar size={12} className="text-[#9f8fb3]" />
-                      {c.joinDate}
-                    </span>
-                  </td>
-                  <td className="py-4 px-6">
-                    <span className={`
-                      inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-extrabold shadow-sm border
-                      ${c.tier === 'Gold Paw' && 'bg-amber-50 text-amber-600 border-amber-200'}
-                      ${c.tier === 'Silver Whiskers' && 'bg-violet-50 text-violet-500 border-violet-200'}
-                      ${c.tier === 'Bronze Feather' && 'bg-orange-50 text-orange-500 border-orange-200'}
-                      ${c.tier === 'Guest' && 'bg-white text-[#705e8c] border-violet-100'}
-                    `}>
-                      <Star size={10} className="fill-current" />
-                      {c.tier}
+
+                  {/* Rank Badge */}
+                  <td className="clay-td text-right">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide border ${
+                      cust.points > 500 
+                        ? 'bg-purple-100 text-purple-700 border-purple-200' 
+                        : cust.points > 250 
+                        ? 'bg-amber-100 text-amber-700 border-amber-200' 
+                        : 'bg-slate-100 text-slate-600 border-slate-200'
+                    }`}>
+                      {cust.points > 500 ? 'Platinum Pet 👑' : cust.points > 250 ? 'Gold Paws 🥇' : 'Bronze Member'}
                     </span>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={7} className="p-12 text-center text-slate-400 font-extrabold text-sm">
+                  No customers found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
-    </motion.div>
+
+      {/* Referral tip banner */}
+      <div className="clay-card p-5 bg-gradient-to-r from-purple-50 to-[#fff8f5] border-[3px] border-white flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-2xl shadow-sm text-purple-500 shrink-0">
+            🤝
+          </div>
+          <div>
+            <h4 className="font-black text-sm text-[#3b2b5c]">Loyalty Referral Program</h4>
+            <p className="text-[11px] text-slate-400 font-extrabold">Active members earn 100 points for each new pet registration</p>
+          </div>
+        </div>
+
+        <button className="clay-btn clay-btn-purple px-5 py-2.5 text-xs shrink-0 w-full md:w-auto">
+          Manage Rules
+        </button>
+      </div>
+
+    </div>
   );
 }
