@@ -92,3 +92,73 @@ Testing
 Jest
 Supertest
 Playwright
+
+
+
+
+
+Viewed seed.ts:1-27
+
+Here is a step-by-step guide on how to obtain real values for each of these environment keys.
+
+---
+
+### 1. Email (Nodemailer with Gmail)
+To use Gmail for sending automated OTP emails, Google requires you to use an **App Password** rather than your actual account password.
+
+* **`SMTP_HOST`**: Set to `smtp.gmail.com`.
+* **`SMTP_PORT`**: Set to `587` (uses TLS security).
+* **`SMTP_USER`**: Your personal or business Gmail address (e.g., `yourbrand@gmail.com`).
+* **`EMAIL_FROM`**: The sender header shown to customers (e.g., `PawMart <yourbrand@gmail.com>`).
+* **`SMTP_PASS` (How to get it):**
+  1. Go to your [Google Account Console](https://myaccount.google.com/).
+  2. Click **Security** on the left menu.
+  3. Ensure **2-Step Verification** is turned **ON** (this is required to generate App Passwords).
+  4. Search for **"App passwords"** in the top search bar (or go directly to [Google App Passwords](https://myaccount.google.com/apppasswords)).
+  5. Enter a name for the app (e.g., `"PawMart Server"`).
+  6. Click **Create**. Copy the generated **16-character code** (it looks like `xxxx yyyy zzzz wwww`).
+  7. Paste this code without spaces into `SMTP_PASS`!
+
+---
+
+### 2. Razorpay Credentials (Indian Payment Gateway)
+Razorpay is ideal for domestic Indian transactions, supporting UPI, Card, Netbanking, etc.
+
+* **`RAZORPAY_KEY_ID` & `RAZORPAY_KEY_SECRET`:**
+  1. Register or Log in to the [Razorpay Dashboard](https://dashboard.razorpay.com/).
+  2. Switch to **Test Mode** (toggle at the top-right corner) for development.
+  3. Navigate to **Account & Settings** in the left sidebar.
+  4. Under **Website and App Settings**, click on **API Keys**.
+  5. Click **Generate Key** to produce your unique `Key ID` and `Key Secret`.
+  6. Copy both keys immediately (the Secret is only shown once).
+  7. Switch to **Live Mode** later to generate production keys when ready to launch!
+
+---
+
+### 3. Stripe Credentials (International Credit Cards & Google Pay)
+Stripe is the industry standard for credit cards and multi-currency global transactions.
+
+* **`STRIPE_SECRET_KEY`:**
+  1. Sign in to your [Stripe Dashboard](https://dashboard.stripe.com/).
+  2. Toggle **"Test mode"** in the top-right header for secure debugging.
+  3. Go to **Developers** ➔ **API Keys** tab.
+  4. Under **Standard keys**, copy the **Secret key** (it starts with `sk_test_...`).
+* **`STRIPE_WEBHOOK_SECRET`:**
+  1. Under the **Developers** menu, click **Webhooks**.
+  2. Click **Add endpoint**.
+  3. Enter your local endpoint (e.g., using a tunneling tool like Ngrok: `https://your-ngrok-subdomain.ngrok-free.app/api/payment/webhook`) or your production domain URL.
+  4. Select the event you want to listen to: `checkout.session.completed`.
+  5. Click **Add endpoint**, then click **Reveal** under "Signing secret" to obtain your webhook secret key (starts with `whsec_...`).
+
+---
+
+### 4. Cashfree Credentials (Zero Setup Payment Gateway)
+Cashfree offers UPI, Cards, and Netbanking, widely used in India with fast activation times.
+
+* **`CASHFREE_APP_ID` & `CASHFREE_SECRET_KEY`:**
+  1. Log in to the [Cashfree Merchant Dashboard](https://merchant.cashfree.com/).
+  2. Click on **Payment Gateway** card.
+  3. Locate the **Test** / **Sandbox** environment toggle in the header.
+  4. On the left navigation panel, head to **Developer Suite** ➔ **API Keys**.
+  5. Copy your **App ID** (often a string of numbers/letters) and **Secret Key**.
+  6. Paste these values directly into `CASHFREE_APP_ID` and `CASHFREE_SECRET_KEY`!

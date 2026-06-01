@@ -1,24 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sparkles, Shield, Truck, Rabbit, ChevronRight } from 'lucide-react';
-import { mockProducts } from '../../data/mockProducts';
+import { getProducts, getCategories } from '../../api/webApi';
 import ProductCard from '../../components/shop/ProductCard';
 
 export default function SmallPets() {
   const [selectedSub, setSelectedSub] = useState<string>('all');
   const [hoveredPromo, setHoveredPromo] = useState<string | null>(null);
 
-  const smallProducts = mockProducts.filter((p) => p.category === 'small_pets');
-  const filteredProducts =
-    selectedSub === 'all'
-      ? smallProducts
-      : smallProducts.filter((p) => p.subcategory === selectedSub);
+  const [dbProducts, setDbProducts] = useState<any[]>([]);
+  const [dbCategories, setDbCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [catsRes, productsRes] = await Promise.all([
+          getCategories('small_pets'),
+          getProducts({ petCategory: 'small_pets', limit: 20 })
+        ]);
+        if (active) {
+          setDbCategories(catsRes);
+          setDbProducts(productsRes.products);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error(err);
+        if (active) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filteredProducts = selectedSub === 'all'
+    ? dbProducts
+    : dbProducts.filter((p) => {
+        const catSlug = typeof p.category === 'object' && p.category !== null ? p.category.slug : '';
+        return catSlug === selectedSub;
+      });
 
   const subcategories = [
-    { id: 'all', label: 'All Pocket Pets' },
-    { id: 'food', label: 'Sun-Cured Mountain Timothy' },
-    { id: 'accessories', label: 'Adventure Havens & Wheels' },
+    { id: 'all', label: 'All Essentials' },
+    ...dbCategories.map(cat => ({ id: cat.slug, label: cat.name }))
   ];
 
   return (

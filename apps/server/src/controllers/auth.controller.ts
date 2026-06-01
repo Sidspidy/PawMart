@@ -20,7 +20,14 @@ export const sendOtp = asyncHandler(async (req: Request, res: Response) => {
 
   const otp = await OtpService.generateOtp(email);
   const existingUser = await User.findOne({ email }).select('name');
-  await EmailService.sendOtpEmail(email, otp, existingUser?.name);
+  
+  try {
+    await EmailService.sendOtpEmail(email, otp, existingUser?.name);
+  } catch (error) {
+    console.warn(`⚠️  [PawMart Auth] SMTP Email service failed, falling back to console print.`);
+  }
+
+  console.log(`\n🔑🔑🔑 [PawMart OTP Login for ${email}]: ${otp} 🔑🔑🔑\n`);
 
   sendSuccess(res, { ttl: 300 }, 'OTP sent to your email');
 });

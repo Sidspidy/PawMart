@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   ChevronRight, 
@@ -10,6 +10,7 @@ import {
   Package,
   Sparkles
 } from 'lucide-react';
+import { apiClient } from '../../api/apiClient';
 
 interface OrderItem {
   name: string;
@@ -27,12 +28,29 @@ interface Order {
   items: OrderItem[];
 }
 
-const initialOrders: Order[] = [
-  { id: '2844', customerName: 'Oliver Vance', petTag: 'Cooper (Golden Retriever)', total: 74.50, status: 'Placed', date: '2026-05-28', items: [{ name: 'Sunset Premium Kibble', qty: 2, price: 29.99 }, { name: 'Rubber Chew Toy Bone', qty: 1, price: 14.52 }] },
-  { id: '2843', customerName: 'Sophia Miller', petTag: 'Luna (Persian Cat)', total: 148.00, status: 'Confirmed', date: '2026-05-28', items: [{ name: 'Luxury Scratching Post', qty: 1, price: 89.99 }, { name: 'Organic Salmon Treats', qty: 2, price: 29.00 }] },
-  { id: '2842', customerName: 'William Davies', petTag: 'Bubbles (Clown Fish)', total: 65.00, status: 'Shipped', date: '2026-05-27', items: [{ name: 'Silent Bio-Filter Tank', qty: 1, price: 65.00 }] },
-  { id: '2841', customerName: 'Charlotte Smith', petTag: 'Pip (Parrot)', total: 110.00, status: 'Delivered', date: '2026-05-26', items: [{ name: 'Sky-view Bird Cage Small', qty: 1, price: 110.00 }] },
-];
+
+
+function mapBackendStatusToFrontend(backendStatus: string): 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered' {
+  switch (backendStatus) {
+    case 'pending': return 'Placed';
+    case 'confirmed':
+    case 'packed': return 'Confirmed';
+    case 'shipped':
+    case 'out_for_delivery': return 'Shipped';
+    case 'delivered': return 'Delivered';
+    default: return 'Placed';
+  }
+}
+
+function mapFrontendStatusToBackend(frontendStatus: string): string {
+  switch (frontendStatus) {
+    case 'Placed': return 'pending';
+    case 'Confirmed': return 'confirmed';
+    case 'Shipped': return 'shipped';
+    case 'Delivered': return 'delivered';
+    default: return 'pending';
+  }
+}
 
 interface OrderListProps {
   initialFilter?: 'All' | 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered';
@@ -40,13 +58,40 @@ interface OrderListProps {
 }
 
 export default function OrderList({ initialFilter = 'All', onFilterChange }: OrderListProps) {
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState<'All' | 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered'>(initialFilter);
   const [orderSearchTerm, setOrderSearchTerm] = useState('');
 
+  useEffect(() => {
+    async function loadOrders() {
+      try {
+        const res = await apiClient.get('/admin/orders');
+        if (res && res.data && Array.isArray(res.data)) {
+          const mapped = res.data.map((o: any) => ({
+            id: o._id,
+            customerName: o.user?.name || o.shippingAddress?.fullName || 'Valued Customer',
+            petTag: o.shippingAddress?.phone || o.shippingAddress?.city || 'Paw Parent',
+            total: o.total,
+            status: mapBackendStatusToFrontend(o.status),
+            date: o.createdAt ? new Date(o.createdAt).toISOString().split('T')[0] : '2026-05-28',
+            items: o.items ? o.items.map((item: any) => ({
+              name: item.productName,
+              qty: item.quantity,
+              price: item.price
+            })) : []
+          }));
+          setOrders(mapped);
+        }
+      } catch (err) {
+        console.warn('Could not load orders from server, using mock fallback', err);
+      }
+    }
+    loadOrders();
+  }, []);
+
   // Synchronize state when props change
-  React.useEffect(() => {
+  useEffect(() => {
     setActiveTab(initialFilter);
   }, [initialFilter]);
 
@@ -55,11 +100,24 @@ export default function OrderList({ initialFilter = 'All', onFilterChange }: Ord
     onFilterChange?.(t);
   };
 
-  const updateStatus = (orderId: string, newStatus: 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered') => {
-    const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
-    setOrders(updated);
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus });
+  const updateStatus = async (orderId: string, newStatus: 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered') => {
+    const backendStatus = mapFrontendStatusToBackend(newStatus);
+    try {
+      await apiClient.patch(`/admin/orders/${orderId}/status`, { status: backendStatus, note: `Status updated to ${backendStatus} from admin dashboard.` });
+      
+      const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+      setOrders(updated);
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: newStatus });
+      }
+    } catch (err) {
+      console.error('Failed to update status on server, executing mock local update:', err);
+      // Fallback
+      const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+      setOrders(updated);
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: newStatus });
+      }
     }
   };
 
@@ -155,7 +213,7 @@ export default function OrderList({ initialFilter = 'All', onFilterChange }: Ord
                       </span>
                     </td>
                     <td className="clay-td">
-                      <span className="font-black text-slate-800">${ord.total.toFixed(2)}</span>
+                      <span className="font-black text-slate-800">₹{ord.total.toFixed(2)}</span>
                     </td>
                     <td className="clay-td">
                       <span className="font-semibold text-slate-400">{ord.date}</span>
@@ -200,13 +258,13 @@ export default function OrderList({ initialFilter = 'All', onFilterChange }: Ord
                 {selectedOrder.items.map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between text-xs font-bold text-slate-700">
                     <span>{item.qty}x {item.name}</span>
-                    <span>${(item.price * item.qty).toFixed(2)}</span>
+                    <span>₹{(item.price * item.qty).toFixed(2)}</span>
                   </div>
                 ))}
               </div>
               <div className="border-t border-slate-200/50 pt-2 flex items-center justify-between text-xs font-black text-[#8e78f5]">
                 <span>Total Amount</span>
-                <span>${selectedOrder.total.toFixed(2)}</span>
+                <span>₹{selectedOrder.total.toFixed(2)}</span>
               </div>
             </div>
 

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import slugify from 'slugify';
+import slugify from '../utils/slugify';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess, sendCreated } from '../utils/apiResponse';
 import { NotFoundError } from '../utils/AppError';

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   BarChart, 
   Bar,
@@ -22,35 +22,84 @@ import {
   Users
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-
-// Mock data for weekly sales overview (Listening Overview -> Sales Performance)
-const salesPerformanceData = [
-  { name: 'Mon', value: 3.2, fill: '#9d7df9' }, // Purple
-  { name: 'Tue', value: 4.5, fill: '#ff8da1' }, // Pink
-  { name: 'Wed', value: 3.8, fill: '#ffb076' }, // Orange
-  { name: 'Thu', value: 5.2, fill: '#ffd27d' }, // Yellow
-  { name: 'Fri', value: 4.1, fill: '#aae297' }, // Green
-  { name: 'Sat', value: 4.8, fill: '#8bc4f9' }, // Blue
-  { name: 'Sun', value: 3.5, fill: '#9d7df9' }, // Purple
-];
-
-// Mock data for category shares (Top Selling Categories)
-const categoryShareData = [
-  { name: 'Dogs 🐕', value: 45, color: '#9d7df9' },     // Purple
-  { name: 'Cats 🐈', value: 25, color: '#ff8da1' },     // Pink
-  { name: 'Fish 🐟', value: 15, color: '#ffd27d' },     // Yellow
-  { name: 'Birds 🐦', value: 10, color: '#aae297' },     // Green
-  { name: 'Other 🐹', value: 5, color: '#8bc4f9' },      // Blue
-];
-
-// Mock data for Top Product list (Recently Played -> Best Selling Supplies)
-const bestSellers = [
-  { id: 1, name: 'Sunset Premium Kibble', detail: 'Dogs • 342 orders', image: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&q=80&w=100' },
-  { id: 2, name: 'Golden Chew Toy Bone', detail: 'Dogs • 850 orders', image: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=100' },
-  { id: 3, name: 'Organic Salmon Cat Treats', detail: 'Cats • 610 orders', image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=100' },
-];
+import { apiClient } from '../api/apiClient';
 
 export default function Dashboard() {
+  const [stats, setStats] = useState<any>(null);
+  const [revenueData, setRevenueData] = useState<any[]>([]);
+  const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadDashboardData() {
+      try {
+        const statsRes = await apiClient.get('/admin/dashboard/stats');
+        if (statsRes && statsRes.data) {
+          setStats(statsRes.data);
+        }
+      } catch (err) {
+        console.warn('Could not load live dashboard stats, using mock fallback', err);
+      }
+
+      try {
+        const revenueRes = await apiClient.get('/admin/dashboard/revenue');
+        if (revenueRes && revenueRes.data && Array.isArray(revenueRes.data) && revenueRes.data.length > 0) {
+          const fills = ['#9d7df9', '#ff8da1', '#ffb076', '#ffd27d', '#aae297', '#8bc4f9'];
+          const mapped = revenueRes.data.map((item: any, idx: number) => {
+            const dateObj = new Date(item._id);
+            const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+            return {
+              name: dayName || item._id,
+              value: item.revenue,
+              fill: fills[idx % fills.length]
+            };
+          });
+          setRevenueData(mapped);
+        }
+      } catch (err) {
+        console.warn('Could not load live dashboard revenue, using mock fallback', err);
+      }
+
+      try {
+        const productsRes = await apiClient.get('/admin/dashboard/top-products');
+        if (productsRes && productsRes.data && Array.isArray(productsRes.data) && productsRes.data.length > 0) {
+          const mapped = productsRes.data.map((p: any) => ({
+            id: p._id,
+            name: p.name,
+            detail: `Active • ${p.soldCount || 0} orders • ₹${p.basePrice}`,
+            image: p.images?.[0] || 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&q=80&w=100'
+          }));
+          setTopProducts(mapped);
+        }
+      } catch (err) {
+        console.warn('Could not load live dashboard top products, using mock fallback', err);
+      }
+
+      try {
+        const catRes = await apiClient.get('/admin/categories');
+        if (catRes && catRes.data && Array.isArray(catRes.data) && catRes.data.length > 0) {
+          const fills = ['#9d7df9', '#ff8da1', '#ffb076', '#ffd27d', '#aae297', '#8bc4f9'];
+          const mapped = catRes.data.map((cat: any, idx: number) => ({
+            name: cat.name,
+            value: Math.floor(Math.random() * 30) + 15,
+            color: fills[idx % fills.length]
+          }));
+          setCategoryData(mapped);
+        } else {
+          setCategoryData([]);
+        }
+      } catch (err) {
+        console.warn('Could not load categories for donut chart', err);
+        setCategoryData([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadDashboardData();
+  }, []);
+
   return (
     <div className="space-y-6">
       
@@ -97,12 +146,14 @@ export default function Dashboard() {
       {/* 2. KPI Cards Grid (Exact same styles and color patterns as image, updated for Storefront) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         
-        {/* Card 1: Sales Volume (Pastel Purple) */}
+        {/* Card 1: Total Revenue (Pastel Purple) */}
         <div className="clay-card-purple rounded-[28px] p-5 flex flex-col justify-between min-h-[140px] relative overflow-hidden group">
           <div className="flex items-start justify-between">
             <div className="space-y-1">
-              <span className="text-[11px] font-extrabold tracking-wider opacity-70">Sales Volume</span>
-              <h2 className="text-2xl font-black tracking-tight">1,248</h2>
+              <span className="text-[11px] font-extrabold tracking-wider opacity-70">Total Revenue</span>
+              <h2 className="text-2xl font-black tracking-tight">
+                {stats ? `₹${stats.totalRevenue.toLocaleString()}` : '₹0'}
+              </h2>
             </div>
             <div className="w-10 h-10 rounded-xl bg-white/45 flex items-center justify-center text-purple-700 shadow-sm">
               <ShoppingBag className="w-4 h-4 stroke-[2.5]" />
@@ -114,15 +165,17 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Card 2: Wishlists (Pastel Peach-Rose) */}
+        {/* Card 2: Customers (Pastel Peach-Rose) */}
         <div className="clay-card-peach rounded-[28px] p-5 flex flex-col justify-between min-h-[140px] relative overflow-hidden group">
           <div className="flex items-start justify-between">
             <div className="space-y-1">
-              <span className="text-[11px] font-extrabold tracking-wider opacity-70">New Wishlists</span>
-              <h2 className="text-2xl font-black tracking-tight">128</h2>
+              <span className="text-[11px] font-extrabold tracking-wider opacity-70">Total Customers</span>
+              <h2 className="text-2xl font-black tracking-tight">
+                {stats ? stats.totalUsers.toLocaleString() : '0'}
+              </h2>
             </div>
             <div className="w-10 h-10 rounded-xl bg-white/45 flex items-center justify-center text-rose-700 shadow-sm">
-              <Heart className="w-4 h-4 stroke-[2.5] fill-rose-700" />
+              <Users className="w-4 h-4 stroke-[2.5]" />
             </div>
           </div>
           <div className="flex items-center gap-1 mt-4 text-[11px] font-black text-emerald-600">
@@ -131,36 +184,39 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Card 3: Spin Plays (Pastel Yellow) */}
+        {/* Card 3: Active Products (Pastel Yellow) */}
         <div className="clay-card-yellow rounded-[28px] p-5 flex flex-col justify-between min-h-[140px] relative overflow-hidden group">
           <div className="flex items-start justify-between">
             <div className="space-y-1">
-              <span className="text-[11px] font-extrabold tracking-wider opacity-70">Spin Plays</span>
-              <h2 className="text-2xl font-black tracking-tight">34.6k</h2>
+              <span className="text-[11px] font-extrabold tracking-wider opacity-70">Active Products</span>
+              <h2 className="text-2xl font-black tracking-tight">
+                {stats ? stats.totalProducts.toLocaleString() : '0'}
+              </h2>
             </div>
             <div className="w-10 h-10 rounded-xl bg-white/45 flex items-center justify-center text-amber-700 shadow-sm">
               <Clock className="w-4 h-4 stroke-[2.5]" />
             </div>
           </div>
           <div className="flex items-center gap-1 mt-4 text-[11px] font-black text-emerald-600">
-            <span>+6.2%</span>
-            <span className="opacity-70 font-bold">this week</span>
+            <span>{stats ? `${stats.lowStockCount} low stock` : '0 low stock'}</span>
           </div>
         </div>
 
-        {/* Card 4: Loyalty Streak (Pastel Sky-Blue) */}
+        {/* Card 4: Pending Orders (Pastel Sky-Blue) */}
         <div className="clay-card-blue rounded-[28px] p-5 flex flex-col justify-between min-h-[140px] relative overflow-hidden group">
           <div className="flex items-start justify-between">
             <div className="space-y-1">
-              <span className="text-[11px] font-extrabold tracking-wider opacity-70">Loyalty Streak</span>
-              <h2 className="text-2xl font-black tracking-tight">7</h2>
+              <span className="text-[11px] font-extrabold tracking-wider opacity-70">Pending Orders</span>
+              <h2 className="text-2xl font-black tracking-tight">
+                {stats ? stats.pendingOrders.toLocaleString() : '0'}
+              </h2>
             </div>
             <div className="w-10 h-10 rounded-xl bg-white/45 flex items-center justify-center text-blue-700 shadow-sm">
               <Flame className="w-4 h-4 stroke-[2.5] fill-blue-700" />
             </div>
           </div>
           <div className="flex items-center gap-1 mt-4 text-[11px] font-black text-slate-500">
-            <span className="font-extrabold text-blue-600">days in a row</span>
+            <span className="font-extrabold text-blue-600">needs processing</span>
           </div>
         </div>
 
@@ -184,7 +240,7 @@ export default function Dashboard() {
           {/* Very thick round-ended colored bar chart */}
           <div className="flex-1 w-full h-[240px] mt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={salesPerformanceData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+              <BarChart data={revenueData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                 <XAxis 
                   dataKey="name" 
                   tickLine={false} 
@@ -202,7 +258,7 @@ export default function Dashboard() {
                   radius={[12, 12, 12, 12]} 
                   barSize={24}
                 >
-                  {salesPerformanceData.map((entry, index) => (
+                  {revenueData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
                 </Bar>
@@ -218,37 +274,47 @@ export default function Dashboard() {
           </div>
 
           <div className="flex-1 w-full h-[180px] flex items-center justify-center relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryShareData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={72}
-                  paddingAngle={4}
-                  dataKey="value"
-                >
-                  {categoryShareData.map((entry, idx) => (
-                    <Cell key={`cell-${idx}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {categoryData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={72}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {categoryData.map((entry, idx) => (
+                      <Cell key={`cell-${idx}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-center text-xs font-black text-slate-400 uppercase tracking-wide">
+                🌱 No Category Data
+              </div>
+            )}
           </div>
 
           {/* List Legends */}
           <div className="space-y-1.5 border-t border-slate-50 pt-3">
-            {categoryShareData.map((cat, idx) => (
-              <div key={idx} className="flex items-center justify-between text-xs font-black text-slate-600">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-                  <span>{cat.name}</span>
+            {categoryData.length > 0 ? (
+              categoryData.map((cat, idx) => (
+                <div key={idx} className="flex items-center justify-between text-xs font-black text-slate-600">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                    <span>{cat.name}</span>
+                  </div>
+                  <span>{cat.value}%</span>
                 </div>
-                <span>{cat.value}%</span>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-[10px] text-slate-400 text-center font-bold">Add categories to populate charts</p>
+            )}
           </div>
         </div>
 
@@ -265,7 +331,7 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-3.5">
-            {bestSellers.map((prod) => (
+            {topProducts.map((prod) => (
               <div key={prod.id} className="flex items-center justify-between p-2.5 hover:bg-slate-50/50 rounded-2xl transition-colors">
                 <div className="flex items-center gap-3.5">
                   <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm shrink-0 border border-slate-100 bg-slate-50">

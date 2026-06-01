@@ -47,7 +47,6 @@ export interface IProduct extends Document {
   isFeatured: boolean;
   isActive: boolean;
   isBestseller: boolean;
-  isNew: boolean;
   averageRating: number;
   reviewCount: number;
   soldCount: number;
@@ -106,7 +105,6 @@ const ProductSchema = new Schema<IProduct>(
     isFeatured: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     isBestseller: { type: Boolean, default: false },
-    isNew: { type: Boolean, default: true },
     averageRating: { type: Number, default: 0, min: 0, max: 5 },
     reviewCount: { type: Number, default: 0, min: 0 },
     soldCount: { type: Number, default: 0, min: 0 },

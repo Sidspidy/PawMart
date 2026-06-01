@@ -1,23 +1,29 @@
 import crypto from 'crypto';
-import { getRedis } from '../config/redis';
 import { env } from '../config/env';
 
-const OTP_PREFIX = 'otp:';
-const ATTEMPTS_PREFIX = 'otp_attempts:';
+interface IOtpEntry {
+  otp: string;
+  expiresAt: number;
+  attempts: number;
+}
+
+const otpStore = new Map<string, IOtpEntry>();
 const MAX_ATTEMPTS = 5;
 
 /**
- * Generates a numeric OTP, stores it in Redis with TTL.
+ * Generates a numeric OTP, stores it in memory with TTL.
  * Returns the OTP (to be emailed — never sent in API response).
  */
 export const generateOtp = async (email: string): Promise<string> => {
-  const redis = getRedis();
+  const normalizedEmail = email.toLowerCase();
   const otp = crypto.randomInt(10 ** (env.OTP_LENGTH - 1), 10 ** env.OTP_LENGTH).toString();
-  const key = `${OTP_PREFIX}${email.toLowerCase()}`;
+  const expiresAt = Date.now() + env.OTP_TTL_SECONDS * 1000;
 
-  await redis.set(key, otp, 'EX', env.OTP_TTL_SECONDS);
-  // Reset attempt counter on new OTP generation
-  await redis.del(`${ATTEMPTS_PREFIX}${email.toLowerCase()}`);
+  otpStore.set(normalizedEmail, {
+    otp,
+    expiresAt,
+    attempts: 0
+  });
 
   return otp;
 };
@@ -30,44 +36,56 @@ export const verifyOtp = async (
   email: string,
   otp: string
 ): Promise<{ valid: boolean; reason?: string }> => {
-  const redis = getRedis();
   const normalizedEmail = email.toLowerCase();
-  const otpKey = `${OTP_PREFIX}${normalizedEmail}`;
-  const attemptsKey = `${ATTEMPTS_PREFIX}${normalizedEmail}`;
+  const entry = otpStore.get(normalizedEmail);
 
-  // Check attempt count
-  const attempts = parseInt((await redis.get(attemptsKey)) ?? '0', 10);
-  if (attempts >= MAX_ATTEMPTS) {
-    return { valid: false, reason: 'Too many failed attempts. Request a new OTP.' };
-  }
-
-  const storedOtp = await redis.get(otpKey);
-
-  if (!storedOtp) {
+  if (!entry) {
     return { valid: false, reason: 'OTP expired or not found. Request a new one.' };
   }
 
-  if (storedOtp !== otp.trim()) {
-    await redis.incr(attemptsKey);
-    await redis.expire(attemptsKey, env.OTP_TTL_SECONDS);
+  if (Date.now() > entry.expiresAt) {
+    otpStore.delete(normalizedEmail);
+    return { valid: false, reason: 'OTP expired or not found. Request a new one.' };
+  }
+
+  // Check attempt count
+  if (entry.attempts >= MAX_ATTEMPTS) {
+    return { valid: false, reason: 'Too many failed attempts. Request a new OTP.' };
+  }
+
+  if (entry.otp !== otp.trim()) {
+    entry.attempts += 1;
+    // Renew expiry timer
+    entry.expiresAt = Date.now() + env.OTP_TTL_SECONDS * 1000;
+    otpStore.set(normalizedEmail, entry);
     return { valid: false, reason: 'Incorrect OTP.' };
   }
 
   // Valid — clean up
-  await redis.del(otpKey);
-  await redis.del(attemptsKey);
+  otpStore.delete(normalizedEmail);
   return { valid: true };
 };
 
 /** Check if an OTP is currently pending for an email (rate-limit guard). */
 export const hasActiveotp = async (email: string): Promise<boolean> => {
-  const redis = getRedis();
-  const ttl = await redis.ttl(`${OTP_PREFIX}${email.toLowerCase()}`);
-  return ttl > 0;
+  const normalizedEmail = email.toLowerCase();
+  const entry = otpStore.get(normalizedEmail);
+  if (!entry) return false;
+  if (Date.now() > entry.expiresAt) {
+    otpStore.delete(normalizedEmail);
+    return false;
+  }
+  return true;
 };
 
 /** Remaining TTL (seconds) for an OTP — useful for frontend countdown. */
 export const otpTtl = async (email: string): Promise<number> => {
-  const redis = getRedis();
-  return redis.ttl(`${OTP_PREFIX}${email.toLowerCase()}`);
+  const normalizedEmail = email.toLowerCase();
+  const entry = otpStore.get(normalizedEmail);
+  if (!entry) return 0;
+  if (Date.now() > entry.expiresAt) {
+    otpStore.delete(normalizedEmail);
+    return 0;
+  }
+  return Math.max(0, Math.ceil((entry.expiresAt - Date.now()) / 1000));
 };

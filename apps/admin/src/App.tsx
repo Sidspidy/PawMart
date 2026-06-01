@@ -10,20 +10,28 @@ import CouponManager from './pages/coupons/CouponManager';
 import SpinConfig from './pages/spin/SpinConfig';
 import Roles from './pages/settings/Roles';
 import Settings from './pages/settings/Settings';
+import Login from './pages/Login';
+import { ToastProvider } from './components/common/Toast';
 
-interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  stock: number;
-  sales: number;
-  image: string;
-}
 
 export default function App() {
+  return (
+    <ToastProvider>
+      <AppInner />
+    </ToastProvider>
+  );
+}
+
+function AppInner() {
+  // Session Authentication state
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('accessToken'));
+  const [adminUser, setAdminUser] = useState<any>(() => {
+    const raw = localStorage.getItem('adminUser');
+    return raw ? JSON.parse(raw) : null;
+  });
+
   const [activeTab, setActiveTab] = useState('Dashboard');
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingProduct, setEditingProduct] = useState<any>(null);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
 
   // Lifted Maintenance Mode state (sync to localStorage)
@@ -34,7 +42,7 @@ export default function App() {
   // Track initial filter state for Orders tab (e.g. Placed from notifications)
   const [ordersInitialFilter, setOrdersInitialFilter] = useState<'All' | 'Placed' | 'Confirmed' | 'Shipped' | 'Delivered'>('All');
 
-  const handleEditProduct = (prod: Product) => {
+  const handleEditProduct = (prod: any) => {
     setEditingProduct(prod);
     setIsAddingProduct(false);
     setActiveTab('Edit Product');
@@ -47,7 +55,6 @@ export default function App() {
   };
 
   const handleSaveProduct = () => {
-    alert('🎉 Product saved successfully inside the cozy 3D dashboard!');
     setActiveTab('Products');
     setIsAddingProduct(false);
     setEditingProduct(null);
@@ -70,6 +77,15 @@ export default function App() {
       setOrdersInitialFilter('All');
     }
     setActiveTab(tab);
+  };
+
+  // Perform session logout and redirect immediately
+  const handleLogout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('adminUser');
+    setToken(null);
+    setAdminUser(null);
+    setActiveTab('Dashboard'); // reset view
   };
 
   const renderContent = () => {
@@ -131,6 +147,18 @@ export default function App() {
     }
   };
 
+  // Check authentication status first
+  if (!token) {
+    return (
+      <Login 
+        onLoginSuccess={(t, u) => {
+          setToken(t);
+          setAdminUser(u);
+        }} 
+      />
+    );
+  }
+
   const currentActiveSidebarTab = 
     activeTab === 'Edit Product' || activeTab === 'Add Product' 
       ? 'Products' 
@@ -142,6 +170,7 @@ export default function App() {
       setActiveTab={handleSidebarTabClick}
       maintenanceMode={maintenanceMode}
       onBellClick={handleBellClick}
+      onLogout={handleLogout}
     >
       {renderContent()}
     </AdminLayout>

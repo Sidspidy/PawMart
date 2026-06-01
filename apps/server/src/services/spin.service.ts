@@ -1,5 +1,5 @@
 import { User } from '../models/User.model';
-import { SpinResult, PrizeType } from '../models/SpinResult.model';
+import { SpinResult, PrizeType, ISpinResult } from '../models/SpinResult.model';
 import { Points, PointsTransactionType } from '../models/Points.model';
 import { creditPoints } from './points.service';
 import { BadRequestError } from '../utils/AppError';
@@ -41,7 +41,7 @@ const generateCouponCode = (): string =>
  */
 export const executeSpin = async (
   userId: string
-): Promise<SpinResult> => {
+): Promise<ISpinResult> => {
   const user = await User.findById(userId);
   if (!user) throw new BadRequestError('User not found');
   if (user.totalSpins <= 0) throw new BadRequestError('No spin attempts remaining');

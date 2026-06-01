@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import ConfirmModal from '../../components/common/ConfirmModal';
 import CustomSelect from '../../components/common/CustomSelect';
+import { useToast } from '../../components/common/Toast';
 interface SettingsProps {
   maintenanceMode: boolean;
   setMaintenanceMode: (val: boolean) => void;
@@ -17,16 +18,17 @@ interface SettingsProps {
 
 export default function Settings({ maintenanceMode, setMaintenanceMode }: SettingsProps) {
   const [shopName, setShopName] = useState('PawMart Storefront');
-  const [currency, setCurrency] = useState('USD ($)');
+  const [currency, setCurrency] = useState('INR (₹)');
   const [autoEmail, setAutoEmail] = useState(true);
+  const { success } = useToast();
 
   // Custom modal states
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [pendingMaintenanceVal, setPendingMaintenanceVal] = useState<boolean | null>(null);
 
   const currencyOptions = [
-    { value: 'USD ($)', label: 'USD ($) - International Dollar', emoji: '💵' },
     { value: 'INR (₹)', label: 'INR (₹) - Indian Rupee', emoji: '🪙' },
+    { value: 'USD ($)', label: 'USD ($) - International Dollar', emoji: '💵' },
     { value: 'EUR (€)', label: 'EUR (€) - Eurozone', emoji: '💶' },
   ];
 
@@ -45,7 +47,7 @@ export default function Settings({ maintenanceMode, setMaintenanceMode }: Settin
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    alert('🎉 Settings updated successfully in the cozy theme!');
+    success('Settings Updated 🎉', 'Your store preferences have been saved successfully.');
   };
 
   return (

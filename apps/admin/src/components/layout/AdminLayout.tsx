@@ -28,6 +28,7 @@ interface AdminLayoutProps {
   setActiveTab: (tab: string) => void;
   maintenanceMode: boolean;
   onBellClick: () => void;
+  onLogout?: () => void;
 }
 
 export default function AdminLayout({ 
@@ -35,7 +36,8 @@ export default function AdminLayout({
   activeTab, 
   setActiveTab,
   maintenanceMode,
-  onBellClick
+  onBellClick,
+  onLogout
 }: AdminLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -241,7 +243,7 @@ export default function AdminLayout({
         type="danger"
         onConfirm={() => {
           setIsLogoutConfirmOpen(false);
-          alert("🐾 Safely logged out! (Session reset simulated successfully).");
+          if (onLogout) onLogout();
         }}
         onCancel={() => setIsLogoutConfirmOpen(false)}
       />

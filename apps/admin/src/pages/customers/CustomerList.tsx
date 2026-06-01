@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   Users, 
@@ -6,35 +6,82 @@ import {
   Award,
   Heart,
   ChevronRight,
-  HeartHandshake
+  HeartHandshake,
+  Shield,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
+import { apiClient } from '../../api/apiClient';
+import { useToast } from '../../components/common/Toast';
 
 interface Customer {
-  id: string;
+  _id: string;
   name: string;
   email: string;
-  points: number;
-  ordersCount: number;
-  totalSpent: number;
-  avatar: string;
-  petName: string;
-  petSpecies: string;
+  pointsBalance: number;
+  isActive: boolean;
+  avatar?: string;
+  petName?: string;
+  petSpecies?: string;
+  ordersCount?: number;
+  totalSpent?: number;
 }
 
-const mockCustomers: Customer[] = [
-  { id: '1', name: 'Oliver Vance', email: 'oliver@gmail.com', points: 340, ordersCount: 8, totalSpent: 420.50, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100', petName: 'Cooper 🦮', petSpecies: 'Golden Retriever' },
-  { id: '2', name: 'Sophia Miller', email: 'sophia@gmail.com', points: 580, ordersCount: 12, totalSpent: 980.00, avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100', petName: 'Luna 🐈', petSpecies: 'Persian Cat' },
-  { id: '3', name: 'William Davies', email: 'will@gmail.com', points: 120, ordersCount: 3, totalSpent: 195.00, avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100', petName: 'Bubbles 🐠', petSpecies: 'Clown Fish' },
-  { id: '4', name: 'Charlotte Smith', email: 'char@gmail.com', points: 250, ordersCount: 6, totalSpent: 480.00, avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=100', petName: 'Pip 🦜', petSpecies: 'Parrot' },
-];
-
 export default function CustomerList() {
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const { success, error: toastError } = useToast();
 
-  const filteredCustomers = mockCustomers.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.petName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Fetch customers from backend
+  const fetchCustomers = async () => {
+    try {
+      setLoading(true);
+      const res = await apiClient.get('/admin/dashboard/customers');
+      if (res && res.data) {
+        setCustomers(res.data);
+      }
+    } catch (err) {
+      console.warn('Could not fetch customers from server, using empty list fallback', err);
+      setCustomers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  // Toggle user active status
+  const handleToggleStatus = async (id: string) => {
+    const customer = customers.find(c => c._id === id);
+    try {
+      const res = await apiClient.patch(`/admin/dashboard/customers/${id}/toggle`, {});
+      if (res && res.success) {
+        const newState = !customer?.isActive;
+        setCustomers(prev =>
+          prev.map(c => c._id === id ? { ...c, isActive: newState } : c)
+        );
+        success(
+          newState ? 'Customer Activated ✅' : 'Customer Deactivated 🚫',
+          `${customer?.name || 'Customer'}'s account is now ${newState ? 'active' : 'inactive'}.`
+        );
+      }
+    } catch (err) {
+      console.error('Failed to toggle customer status:', err);
+      toastError('Status update failed', 'Could not toggle user status on the server. Try again.');
+    }
+  };
+
+  // Snappy real-time client-side filter
+  const filteredCustomers = customers.filter(c => {
+    const term = searchTerm.toLowerCase();
+    const nameMatch = c.name?.toLowerCase().includes(term);
+    const emailMatch = c.email?.toLowerCase().includes(term);
+    const petMatch = c.petName?.toLowerCase().includes(term) || false;
+    return nameMatch || emailMatch || petMatch;
+  });
 
   return (
     <div className="space-y-6">
@@ -45,98 +92,137 @@ export default function CustomerList() {
           <Search className="w-4 h-4 text-slate-400 shrink-0" />
           <input 
             type="text" 
-            placeholder="Search name or pet..."
+            placeholder="Search name, email or pet..."
             className="bg-transparent border-none outline-none text-xs w-full placeholder-slate-400 text-slate-700 font-extrabold"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+            Total Customers: {customers.length}
+          </span>
+        </div>
       </div>
 
       {/* Customer directory Table */}
       <div className="clay-table-container">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr>
-              <th className="clay-th w-16">S.No.</th>
-              <th className="clay-th">Member profile</th>
-              <th className="clay-th">Pet details</th>
-              <th className="clay-th text-center">Loyalty Points</th>
-              <th className="clay-th text-center">Orders Placed</th>
-              <th className="clay-th">Total Spend</th>
-              <th className="clay-th text-right">Loyalty rank</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredCustomers.length > 0 ? (
-              filteredCustomers.map((cust, index) => (
-                <tr key={cust.id} className="hover:bg-slate-50/50 transition-colors">
-                  {/* S.No. */}
-                  <td className="clay-td font-black text-[#8e78f5]">{index + 1}</td>
-                  
-                  {/* Info */}
-                  <td className="clay-td">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-100 shadow-sm shrink-0 bg-slate-100">
-                        <img src={cust.avatar} alt={cust.name} className="w-full h-full object-cover" />
-                      </div>
-                      <div>
-                        <h4 className="font-black text-sm text-slate-800">{cust.name}</h4>
-                        <span className="text-[10px] text-slate-400 font-bold block">{cust.email}</span>
-                      </div>
-                    </div>
-                  </td>
+        {loading ? (
+          <div className="p-16 text-center">
+            <div className="w-10 h-10 border-4 border-[#8e78f5] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-xs text-slate-400 font-black uppercase tracking-wider">Gathering paw members...</p>
+          </div>
+        ) : (
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr>
+                <th className="clay-th w-16">S.No.</th>
+                <th className="clay-th">Member profile</th>
+                <th className="clay-th">Pet details</th>
+                <th className="clay-th text-center">Loyalty Points</th>
+                <th className="clay-th text-center">Status</th>
+                <th className="clay-th">Total Spend</th>
+                <th className="clay-th text-right">Loyalty rank</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCustomers.length > 0 ? (
+                filteredCustomers.map((cust, index) => {
+                  const points = cust.pointsBalance || 0;
+                  const orders = cust.ordersCount || 0;
+                  const spent = cust.totalSpent || 0;
+                  const petName = cust.petName || 'Cooper 🦮';
+                  const petSpecies = cust.petSpecies || 'Golden Retriever';
+                  const avatar = cust.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=100';
 
-                  {/* Pet details */}
-                  <td className="clay-td">
-                    <div>
-                      <h5 className="font-black text-xs text-purple-700 flex items-center gap-1">
-                        <Heart className="w-3 h-3 fill-purple-500 text-purple-500" /> {cust.petName}
-                      </h5>
-                      <span className="text-[10px] text-slate-400 font-extrabold">{cust.petSpecies}</span>
-                    </div>
-                  </td>
+                  return (
+                    <tr key={cust._id} className="hover:bg-slate-50/50 transition-colors">
+                      {/* S.No. */}
+                      <td className="clay-td font-black text-[#8e78f5]">{index + 1}</td>
+                      
+                      {/* Info */}
+                      <td className="clay-td">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-100 shadow-sm shrink-0 bg-slate-100">
+                            <img src={avatar} alt={cust.name} className="w-full h-full object-cover" />
+                          </div>
+                          <div>
+                            <h4 className="font-black text-sm text-slate-800">{cust.name}</h4>
+                            <span className="text-[10px] text-slate-400 font-bold block">{cust.email}</span>
+                          </div>
+                        </div>
+                      </td>
 
-                  {/* Loyalty Points */}
-                  <td className="clay-td text-center">
-                    <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-xs font-black">
-                      ⭐ {cust.points} pts
-                    </span>
-                  </td>
+                      {/* Pet details */}
+                      <td className="clay-td">
+                        <div>
+                          <h5 className="font-black text-xs text-purple-700 flex items-center gap-1">
+                            <Heart className="w-3 h-3 fill-purple-500 text-purple-500" /> {petName}
+                          </h5>
+                          <span className="text-[10px] text-slate-400 font-extrabold">{petSpecies}</span>
+                        </div>
+                      </td>
 
-                  {/* Orders */}
-                  <td className="clay-td text-center">
-                    <span className="font-extrabold text-slate-800">{cust.ordersCount} packages</span>
-                  </td>
+                      {/* Loyalty Points */}
+                      <td className="clay-td text-center">
+                        <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-full text-xs font-black">
+                          ⭐ {points} pts
+                        </span>
+                      </td>
 
-                  {/* Spend */}
-                  <td className="clay-td">
-                    <span className="font-black text-[#8e78f5]">${cust.totalSpent.toFixed(2)}</span>
-                  </td>
+                      {/* Status Toggle */}
+                      <td className="clay-td text-center">
+                        <button
+                          onClick={() => handleToggleStatus(cust._id)}
+                          title="Click to toggle account status"
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide border flex items-center gap-1 mx-auto transition-all ${
+                            cust.isActive 
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' 
+                              : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                          }`}
+                        >
+                          {cust.isActive ? (
+                            <>
+                              <CheckCircle className="w-3 h-3 stroke-[2.5]" /> Active
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="w-3 h-3 stroke-[2.5]" /> Suspended
+                            </>
+                          )}
+                        </button>
+                      </td>
 
-                  {/* Rank Badge */}
-                  <td className="clay-td text-right">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide border ${
-                      cust.points > 500 
-                        ? 'bg-purple-100 text-purple-700 border-purple-200' 
-                        : cust.points > 250 
-                        ? 'bg-amber-100 text-amber-700 border-amber-200' 
-                        : 'bg-slate-100 text-slate-600 border-slate-200'
-                    }`}>
-                      {cust.points > 500 ? 'Platinum Pet 👑' : cust.points > 250 ? 'Gold Paws 🥇' : 'Bronze Member'}
-                    </span>
+                      {/* Spend */}
+                      <td className="clay-td">
+                        <span className="font-black text-[#8e78f5]">₹{spent.toFixed(2)}</span>
+                      </td>
+
+                      {/* Rank Badge */}
+                      <td className="clay-td text-right">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide border ${
+                          points > 500 
+                            ? 'bg-purple-100 text-purple-700 border-purple-200' 
+                            : points > 250 
+                            ? 'bg-amber-100 text-amber-700 border-amber-200' 
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
+                        }`}>
+                          {points > 500 ? 'Platinum Pet 👑' : points > 250 ? 'Gold Paws 🥇' : 'Bronze Member'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={7} className="p-12 text-center text-slate-400 font-extrabold text-sm">
+                    No customers found in database.
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={7} className="p-12 text-center text-slate-400 font-extrabold text-sm">
-                  No customers found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Referral tip banner */}

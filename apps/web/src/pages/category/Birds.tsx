@@ -1,24 +1,53 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sparkles, Shield, Truck, Feather, ChevronRight } from 'lucide-react';
-import { mockProducts } from '../../data/mockProducts';
+import { getProducts, getCategories } from '../../api/webApi';
 import ProductCard from '../../components/shop/ProductCard';
 
 export default function Birds() {
   const [selectedSub, setSelectedSub] = useState<string>('all');
   const [hoveredPromo, setHoveredPromo] = useState<string | null>(null);
 
-  const birdProducts = mockProducts.filter((p) => p.category === 'birds');
-  const filteredProducts =
-    selectedSub === 'all'
-      ? birdProducts
-      : birdProducts.filter((p) => p.subcategory === selectedSub);
+  const [dbProducts, setDbProducts] = useState<any[]>([]);
+  const [dbCategories, setDbCategories] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [catsRes, productsRes] = await Promise.all([
+          getCategories('birds'),
+          getProducts({ petCategory: 'birds', limit: 20 })
+        ]);
+        if (active) {
+          setDbCategories(catsRes);
+          setDbProducts(productsRes.products);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error(err);
+        if (active) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filteredProducts = selectedSub === 'all'
+    ? dbProducts
+    : dbProducts.filter((p) => {
+        const catSlug = typeof p.category === 'object' && p.category !== null ? p.category.slug : '';
+        return catSlug === selectedSub;
+      });
 
   const subcategories = [
-    { id: 'all', label: 'All Aviary' },
-    { id: 'food', label: 'Organic Gourmet Blends' },
-    { id: 'accessories', label: 'Mansion Cages & Stands' },
+    { id: 'all', label: 'All Essentials' },
+    ...dbCategories.map(cat => ({ id: cat.slug, label: cat.name }))
   ];
 
   return (

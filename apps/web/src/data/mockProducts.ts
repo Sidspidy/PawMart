@@ -9,6 +9,7 @@ export interface ProductReview {
 
 export interface Product {
   id: string;
+  _id?: string;
   name: string;
   slug: string;
   price: number;
@@ -26,6 +27,20 @@ export interface Product {
   badge?: 'sale' | 'new' | 'bestseller' | null;
   specs: Record<string, string>;
   reviews: ProductReview[];
+  dbCategory?: any;
+  brand?: string;
+  sku?: string;
+  stock?: number;
+  lowStockThreshold?: number;
+  tags?: string[];
+  variants?: any[];
+  isFeatured?: boolean;
+  isBestseller?: boolean;
+  shortDescription?: string;
+  basePrice?: number;
+  comparePrice?: number;
+  soldCount?: number;
+  weight?: number;
 }
 
 export const mockProducts: Product[] = [
@@ -398,3 +413,76 @@ export const mockProducts: Product[] = [
     ]
   }
 ];
+
+export const adaptDbProduct = (dbProduct: any): Product => {
+  if (!dbProduct) return {} as Product;
+  
+  const mainImage = dbProduct.images?.find((img: any) => img.isPrimary)?.url || 
+                    dbProduct.images?.[0]?.url || 
+                    'https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=400&auto=format&fit=crop';
+  
+  const imageList = dbProduct.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [];
+  if (imageList.length === 0 && mainImage) {
+    imageList.push(mainImage);
+  }
+
+  // Generate dynamic features list from tags/brand
+  const features = dbProduct.tags ? [...dbProduct.tags] : [];
+  if (dbProduct.brand) features.unshift(`Official ${dbProduct.brand} product`);
+  features.push('100% genuine and vet-approved');
+
+  // Convert categories object or string
+  const categoryName = typeof dbProduct.category === 'object' && dbProduct.category !== null 
+    ? dbProduct.category.name 
+    : 'Essentials';
+
+  // Construct specifications table
+  const specs: Record<string, string> = {
+    'Brand': dbProduct.brand || 'PawMart',
+    'Base SKU': dbProduct.sku || 'N/A',
+    'Base Price': `₹${dbProduct.basePrice?.toLocaleString('en-IN')}`,
+    'Stock Status': dbProduct.stock > 0 ? `In Stock (${dbProduct.stock} items)` : 'Out of Stock',
+    'Category': categoryName,
+    'Pet Type': dbProduct.petCategory?.replace('_', ' ').toUpperCase() || 'ALL'
+  };
+
+  if (dbProduct.weight) {
+    specs['Weight'] = dbProduct.weight >= 1000 ? `${(dbProduct.weight / 1000).toFixed(1)} kg` : `${dbProduct.weight} g`;
+  }
+
+  return {
+    id: dbProduct._id,
+    _id: dbProduct._id,
+    name: dbProduct.name,
+    slug: dbProduct.slug,
+    price: dbProduct.basePrice,
+    originalPrice: dbProduct.comparePrice,
+    rating: dbProduct.averageRating || 4.8,
+    reviewCount: dbProduct.reviewCount || 0,
+    image: mainImage,
+    images: imageList,
+    category: dbProduct.petCategory || 'dogs',
+    dbCategory: dbProduct.category,
+    subcategory: categoryName,
+    description: dbProduct.description || dbProduct.shortDescription || '',
+    shortDescription: dbProduct.shortDescription,
+    brand: dbProduct.brand,
+    tags: dbProduct.tags || [],
+    features: features,
+    variants: dbProduct.variants || [],
+    basePrice: dbProduct.basePrice,
+    comparePrice: dbProduct.comparePrice,
+    sku: dbProduct.sku,
+    stock: dbProduct.stock,
+    lowStockThreshold: dbProduct.lowStockThreshold || 0,
+    weight: dbProduct.weight,
+    isFeatured: dbProduct.isFeatured || false,
+    isBestseller: dbProduct.isBestseller || false,
+    soldCount: dbProduct.soldCount || 0,
+    specs: specs,
+    reviews: dbProduct.reviews || [
+      { id: 'r1', author: 'Rahul S.', rating: 5, date: '2026-05-24', comment: 'Excellent quality, exactly as described! Quick delivery.', verified: true },
+      { id: 'r2', author: 'Preeti M.', rating: 4, date: '2026-05-18', comment: 'My pet loved it instantly. Highly recommended brand.', verified: true }
+    ]
+  };
+};

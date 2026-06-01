@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, 
   Plus, 
@@ -11,6 +11,8 @@ import {
   ChevronRight
 } from 'lucide-react';
 import ConfirmModal from '../../components/common/ConfirmModal';
+import { apiClient } from '../../api/apiClient';
+import { useToast } from '../../components/common/Toast';
 
 interface Product {
   id: string;
@@ -20,39 +22,71 @@ interface Product {
   stock: number;
   sales: number;
   image: string;
+  sku: string;
+  rawData: any; // full API object for edit
 }
 
 interface ProductListProps {
   onAddProduct: () => void;
-  onEditProduct: (product: Product) => void;
+  onEditProduct: (product: any) => void;
 }
 
-const mockProducts: Product[] = [
-  { id: '1', name: 'Sunset Premium Kibble', category: 'Dogs 🐕', price: 45.99, stock: 85, sales: 342, image: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&q=80&w=100' },
-  { id: '2', name: 'Golden Chew Toy Bone', category: 'Dogs 🐕', price: 12.50, stock: 150, sales: 850, image: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=100' },
-  { id: '3', name: 'Organic Salmon Cat Treats', category: 'Cats 🐈', price: 8.99, stock: 200, sales: 610, image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=100' },
-  { id: '4', name: 'Luxury Scratching Post', category: 'Cats 🐈', price: 89.99, stock: 25, sales: 124, image: 'https://images.unsplash.com/photo-1545249390-6bdfa286032f?auto=format&fit=crop&q=80&w=100' },
-  { id: '5', name: 'Silent Bio-Filter Tank', category: 'Fish 🐟', price: 65.00, stock: 40, sales: 98, image: 'https://images.unsplash.com/photo-1522069169874-c58ec4b76be5?auto=format&fit=crop&q=80&w=100' },
-  { id: '6', name: 'Sky-view Bird Cage Small', category: 'Birds 🐦', price: 110.00, stock: 15, sales: 48, image: 'https://images.unsplash.com/photo-1606567595334-d39973c37d cb?auto=format&fit=crop&q=80&w=100' },
-];
+
 
 export default function ProductList({ onAddProduct, onEditProduct }: ProductListProps) {
-  const [products, setProducts] = useState<Product[]>(mockProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [activeFilter, setActiveFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Custom ConfirmModal states
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
+  const { success, error: toastError } = useToast();
+
+  useEffect(() => {
+    async function loadProducts() {
+      try {
+        const res = await apiClient.get('/admin/products');
+        if (res && res.data && Array.isArray(res.data)) {
+          const mapped = res.data.map((p: any) => ({
+            id: p._id,
+            name: p.name,
+            category: p.petCategory
+              ? p.petCategory.charAt(0).toUpperCase() + p.petCategory.slice(1)
+              : (p.category?.name || 'Pets 🐾'),
+            price: p.basePrice,
+            stock: p.stock,
+            sales: p.soldCount || 0,
+            image: p.images?.[0]?.url || 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&q=80&w=100',
+            sku: p.sku || '—',
+            rawData: p,
+          }));
+          setProducts(mapped);
+        }
+      } catch (err) {
+        console.warn('Could not fetch products from server', err);
+        toastError('Products failed to load', 'Check the server connection and try refreshing.');
+      }
+    }
+    loadProducts();
+  }, []);
 
   const handleDeleteTrigger = (id: string) => {
     setProductToDelete(id);
     setIsConfirmOpen(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
+    const product = products.find(p => p.id === productToDelete);
     if (productToDelete) {
-      setProducts(products.filter(p => p.id !== productToDelete));
+      try {
+        await apiClient.delete(`/admin/products/${productToDelete}`);
+        setProducts(prev => prev.filter(p => p.id !== productToDelete));
+        success('Product Deleted 🗑️', `"${product?.name}" has been removed from the catalog.`);
+      } catch (err) {
+        console.error('Failed to delete product from server:', err);
+        toastError('Delete failed', 'Could not remove the product. Try again.');
+      }
     }
     setIsConfirmOpen(false);
     setProductToDelete(null);
@@ -136,7 +170,7 @@ export default function ProductList({ onAddProduct, onEditProduct }: ProductList
                       </div>
                       <div>
                         <h4 className="font-black text-sm text-slate-800">{product.name}</h4>
-                        <span className="text-[10px] text-slate-400 font-extrabold">SKU: PM-0{product.id}0{product.id}</span>
+                        <span className="text-[10px] text-slate-400 font-extrabold">SKU: {product.sku}</span>
                       </div>
                     </div>
                   </td>
@@ -150,7 +184,7 @@ export default function ProductList({ onAddProduct, onEditProduct }: ProductList
 
                   {/* Price */}
                   <td className="clay-td">
-                    <span className="font-extrabold text-slate-800">${product.price.toFixed(2)}</span>
+                    <span className="font-extrabold text-slate-800">₹{product.price.toFixed(2)}</span>
                   </td>
 
                   {/* Stock */}
@@ -175,7 +209,7 @@ export default function ProductList({ onAddProduct, onEditProduct }: ProductList
                   <td className="clay-td text-right">
                     <div className="flex items-center justify-end gap-2.5">
                       <button 
-                        onClick={() => onEditProduct(product)}
+                        onClick={() => onEditProduct(product.rawData)}
                         className="p-2 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 text-slate-600 active:scale-95 transition-all shadow-sm"
                       >
                         <Edit className="w-4 h-4" />

@@ -9,17 +9,24 @@ import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 
-// ── Route imports ─────────────────────────────────────────────────────────────
-import authRoutes from './routes/auth.routes';
-import productRoutes from './routes/product.routes';
-import categoryRoutes from './routes/category.routes';
-import cartRoutes from './routes/cart.routes';
-import orderRoutes from './routes/order.routes';
-import paymentRoutes from './routes/payment.routes';
-import couponRoutes from './routes/coupon.routes';
-import pointsRoutes from './routes/points.routes';
-import adminRoutes from './routes/admin.routes';
-import uploadRoutes from './routes/upload.routes';
+// ── Restructured Route imports (Storefront Web & Admin Dashboard) ────────────
+import webAuthRoutes from './routes/web/auth.routes';
+import webProductRoutes from './routes/web/product.routes';
+import webCategoryRoutes from './routes/web/category.routes';
+import webCartRoutes from './routes/web/cart.routes';
+import webOrderRoutes from './routes/web/order.routes';
+import webPaymentRoutes from './routes/web/payment.routes';
+import webCouponRoutes from './routes/web/coupon.routes';
+import webPointsRoutes from './routes/web/points.routes';
+
+import adminDashboardRoutes from './routes/admin/dashboard.routes';
+import adminProductRoutes from './routes/admin/product.routes';
+import adminCategoryRoutes from './routes/admin/category.routes';
+import adminOrderRoutes from './routes/admin/order.routes';
+import adminCouponRoutes from './routes/admin/coupon.routes';
+import adminSpinRoutes from './routes/admin/spin.routes';
+import adminStaffRoutes from './routes/admin/staff.routes';
+import adminUploadRoutes from './routes/admin/upload.routes';
 
 const app = express();
 
@@ -74,17 +81,25 @@ app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: '🐾 PawMart API is running', env: env.NODE_ENV });
 });
 
-// ── API Routes ────────────────────────────────────────────────────────────────
-app.use('/api/auth', authRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/categories', categoryRoutes);
-app.use('/api/cart', cartRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/payment', paymentRoutes);
-app.use('/api/coupons', couponRoutes);
-app.use('/api/points', pointsRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/upload', uploadRoutes);
+// ── API Routes (Storefront Customer APIs) ────────────────────────────────────
+app.use('/api/auth', webAuthRoutes);
+app.use('/api/products', webProductRoutes);
+app.use('/api/categories', webCategoryRoutes);
+app.use('/api/cart', webCartRoutes);
+app.use('/api/orders', webOrderRoutes);
+app.use('/api/payment', webPaymentRoutes);
+app.use('/api/coupons', webCouponRoutes);
+app.use('/api/points', webPointsRoutes);
+
+// ── API Routes (Admin Dashboard Management APIs) ─────────────────────────────
+app.use('/api/admin/dashboard', adminDashboardRoutes);
+app.use('/api/admin/products', adminProductRoutes);
+app.use('/api/admin/categories', adminCategoryRoutes);
+app.use('/api/admin/orders', adminOrderRoutes);
+app.use('/api/admin/coupons', adminCouponRoutes);
+app.use('/api/admin/spin', adminSpinRoutes);
+app.use('/api/admin/staff', adminStaffRoutes);
+app.use('/api/admin/upload', adminUploadRoutes);
 
 // ── Error handling ────────────────────────────────────────────────────────────
 app.use(notFoundHandler);

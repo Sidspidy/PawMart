@@ -1,17 +1,14 @@
 import { env } from './config/env';
 import { connectDB, disconnectDB } from './config/db';
-import { getRedis, disconnectRedis } from './config/redis';
 import app from './app';
+import { seedAll } from './utils/seed';
 
 const startServer = async (): Promise<void> => {
   // Validate env (crashes if invalid — better than silent failure)
   await connectDB();
-
-  // Eagerly connect Redis so first OTP request is fast
-  const redis = getRedis();
-  await redis.connect().catch(() => {
-    // ioredis with lazyConnect=true uses connect(), ignore if already connected
-  });
+  
+  // Seed all required initial data (superadmin, categories, products, coupons)
+  await seedAll();
 
   const server = app.listen(env.PORT, () => {
     console.log(`\n🐾  PawMart API`);
@@ -24,7 +21,7 @@ const startServer = async (): Promise<void> => {
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`\n⚡  ${signal} received — shutting down gracefully…`);
     server.close(async () => {
-      await Promise.allSettled([disconnectDB(), disconnectRedis()]);
+      await Promise.allSettled([disconnectDB()]);
       console.log('✅  Graceful shutdown complete');
       process.exit(0);
     });

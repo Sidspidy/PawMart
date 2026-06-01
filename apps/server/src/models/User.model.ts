@@ -60,6 +60,12 @@ export interface IUser extends Document {
   pointsBalance: number;
   totalSpins: number;
   wishlist: mongoose.Types.ObjectId[];
+  permissions: {
+    products: boolean;
+    orders: boolean;
+    spinWheel: boolean;
+    staffLogs: boolean;
+  };
   lastLoginAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -89,13 +95,18 @@ const UserSchema = new Schema<IUser>(
       enum: Object.values(AuthProvider),
       default: AuthProvider.EMAIL,
     },
-    googleId: { type: String, sparse: true },
     isEmailVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     addresses: { type: [AddressSchema], default: [] },
     pointsBalance: { type: Number, default: 0, min: 0 },
     totalSpins: { type: Number, default: 0, min: 0 },
     wishlist: [{ type: Schema.Types.ObjectId, ref: 'Product' }],
+    permissions: {
+      products: { type: Boolean, default: false },
+      orders: { type: Boolean, default: true },
+      spinWheel: { type: Boolean, default: false },
+      staffLogs: { type: Boolean, default: false },
+    },
     lastLoginAt: { type: Date },
   },
   {

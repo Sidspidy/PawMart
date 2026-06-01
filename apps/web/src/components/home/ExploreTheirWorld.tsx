@@ -1,15 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import { getProducts } from '../../api/webApi';
+import { Product } from '../../data/mockProducts';
+import { useCartStore } from '../../store/cart.store';
 
-const getProductImage = (id: string) => {
-  if (id === 'dogs') return '/images/hero/dog.png';
-  if (id === 'cats') return '/images/hero/cat.png';
-  if (id === 'fish') return '/images/hero/fish.png';
-  return '/images/hero/cat.png'; // Fallback
-};
-
-const habitats = [
+const habitatMetadata = [
   {
     id: 'dogs',
     title: 'Dogs',
@@ -19,18 +15,6 @@ const habitats = [
     bgColor: '#fef3c7',
     accentColor: '#d97706',
     image: '/habitat/dog.png',
-    products: [
-      { name: 'Premium Kibble', brand: 'Royal Canin', price: '$45', image: getProductImage('dogs') },
-      { name: 'Tough Chew Toy', brand: 'Kong', price: '$12', image: getProductImage('dogs') },
-      { name: 'Orthopedic Bed', brand: 'FurHaven', price: '$89', image: getProductImage('dogs') },
-      { name: 'Leather Leash', brand: 'PetSafe', price: '$25', image: getProductImage('dogs') },
-      { name: 'Training Treats', brand: 'Zukes', price: '$8', image: getProductImage('dogs') },
-      { name: 'Grooming Brush', brand: 'Furminator', price: '$35', image: getProductImage('dogs') },
-      { name: 'Slow Feeder Bowl', brand: 'Outward', price: '$15', image: getProductImage('dogs') },
-      { name: 'Calming Chews', brand: 'Zesty Paws', price: '$28', image: getProductImage('dogs') },
-      { name: 'Dog Dental Chews', brand: 'Greenies', price: '$18', image: getProductImage('dogs') },
-      { name: 'Puzzle Toy', brand: 'Nina Ottosson', price: '$22', image: getProductImage('dogs') },
-    ],
   },
   {
     id: 'cats',
@@ -41,18 +25,6 @@ const habitats = [
     bgColor: '#f3e8ff',
     accentColor: '#a855f7',
     image: '/habitat/cat.png',
-    products: [
-      { name: 'Cat Tree Tower', brand: 'Frisco', price: '$65', image: getProductImage('cats') },
-      { name: 'Feather Wand', brand: 'Jackson', price: '$8', image: getProductImage('cats') },
-      { name: 'Salmon Pate', brand: 'Purina Pro', price: '$24', image: getProductImage('cats') },
-      { name: 'Cozy Cave Bed', brand: 'Snoozer', price: '$40', image: getProductImage('cats') },
-      { name: 'Scratching Post', brand: 'SmartCat', price: '$35', image: getProductImage('cats') },
-      { name: 'Catnip Mice', brand: 'Yeowww!', price: '$12', image: getProductImage('cats') },
-      { name: 'Water Fountain', brand: 'Catit', price: '$28', image: getProductImage('cats') },
-      { name: 'Self Groomer', brand: 'Safari', price: '$10', image: getProductImage('cats') },
-      { name: 'Cat Grass Kit', brand: 'Pet Greens', price: '$6', image: getProductImage('cats') },
-      { name: 'Laser Pointer', brand: 'KONG', price: '$5', image: getProductImage('cats') },
-    ],
   },
   {
     id: 'fish',
@@ -63,18 +35,6 @@ const habitats = [
     bgColor: '#e0f2fe',
     accentColor: '#0ea5e9',
     image: '/habitat/fish.png',
-    products: [
-      { name: 'Glass Aquarium', brand: 'Aqueon', price: '$120', image: getProductImage('fish') },
-      { name: 'Coral Decor', brand: 'Penn-Plax', price: '$15', image: getProductImage('fish') },
-      { name: 'Flake Food', brand: 'TetraMin', price: '$9', image: getProductImage('fish') },
-      { name: 'Water Filter', brand: 'Fluval', price: '$35', image: getProductImage('fish') },
-      { name: 'LED Light Hood', brand: 'Nicrew', price: '$25', image: getProductImage('fish') },
-      { name: 'Gravel Vacuum', brand: 'Python', price: '$18', image: getProductImage('fish') },
-      { name: 'Water Heater', brand: 'Eheim', price: '$28', image: getProductImage('fish') },
-      { name: 'Sinking Pellets', brand: 'Hikari', price: '$12', image: getProductImage('fish') },
-      { name: 'Algae Wafers', brand: 'Hikari', price: '$7', image: getProductImage('fish') },
-      { name: 'Magnetic Cleaner', brand: 'Mag-Float', price: '$15', image: getProductImage('fish') },
-    ],
   },
   {
     id: 'birds',
@@ -85,18 +45,6 @@ const habitats = [
     bgColor: '#dcfce7',
     accentColor: '#22c55e',
     image: '/habitat/bird.png',
-    products: [
-      { name: 'Seed Mix', brand: 'Kaytee', price: '$18', image: getProductImage('birds') },
-      { name: 'Flight Cage', brand: 'Prevue', price: '$150', image: getProductImage('birds') },
-      { name: 'Wooden Perch', brand: 'JW Pet', price: '$11', image: getProductImage('birds') },
-      { name: 'Bell Toy', brand: 'Super Bird', price: '$7', image: getProductImage('birds') },
-      { name: 'Cuttlebone', brand: 'Penn-Plax', price: '$5', image: getProductImage('birds') },
-      { name: 'Foraging Ball', brand: 'Planet Pleasures', price: '$14', image: getProductImage('birds') },
-      { name: 'Hanging Tent', brand: 'Snuggle Hut', price: '$16', image: getProductImage('birds') },
-      { name: 'Millet Spray', brand: 'Browns', price: '$9', image: getProductImage('birds') },
-      { name: 'Bird Bath', brand: 'Lixit', price: '$12', image: getProductImage('birds') },
-      { name: 'Rope Bungee', brand: 'Booda', price: '$18', image: getProductImage('birds') },
-    ],
   },
   {
     id: 'small-pets',
@@ -107,18 +55,6 @@ const habitats = [
     bgColor: '#fce7f3',
     accentColor: '#ec4899',
     image: '/habitat/small-pet.png',
-    products: [
-      { name: 'Exercise Wheel', brand: 'Exotic Nutrition', price: '$22', image: getProductImage('small-pets') },
-      { name: 'Timothy Hay', brand: 'Oxbow', price: '$16', image: getProductImage('small-pets') },
-      { name: 'Wood Hideout', brand: 'Niteangel', price: '$28', image: getProductImage('small-pets') },
-      { name: 'Chew Sticks', brand: 'Kaytee', price: '$5', image: getProductImage('small-pets') },
-      { name: 'Paper Bedding', brand: 'Carefresh', price: '$20', image: getProductImage('small-pets') },
-      { name: 'Water Bottle', brand: 'Choco Nose', price: '$12', image: getProductImage('small-pets') },
-      { name: 'Dust Bath', brand: 'Lixit', price: '$15', image: getProductImage('small-pets') },
-      { name: 'Foraging Mix', brand: 'Higgins', price: '$10', image: getProductImage('small-pets') },
-      { name: 'Corner Litter Pan', brand: 'Ware', price: '$9', image: getProductImage('small-pets') },
-      { name: 'Mineral Chew', brand: 'Kaytee', price: '$4', image: getProductImage('small-pets') },
-    ],
   },
 ];
 
@@ -199,8 +135,66 @@ const HabitatAnimations = ({ id }: { id: string }) => {
 
 export default function ExploreTheirWorld() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [habitatProducts, setHabitatProducts] = useState<Record<string, Product[]>>({});
+  const [loading, setLoading] = useState<boolean>(true);
+  const [wishlist, setWishlist] = useState<Record<string, boolean>>({});
 
-  const selectedHabitat = habitats.find(h => h.id === selectedId);
+  const addItem = useCartStore((s) => s.addItem);
+  const toggleCartDrawer = useCartStore((s) => s.toggleDrawer);
+
+  useEffect(() => {
+    let active = true;
+    const loadAllHabitats = async () => {
+      const results: Record<string, Product[]> = {};
+      const ids = ['dogs', 'cats', 'fish', 'birds', 'small-pets'];
+      await Promise.all(
+        ids.map(async (id) => {
+          const apiPetCategory = id === 'small-pets' ? 'small_pets' : id;
+          try {
+            const res = await getProducts({ petCategory: apiPetCategory, limit: 10 });
+            results[id] = res.products;
+          } catch (err) {
+            console.error(`Failed to load products for habitat ${id}:`, err);
+            results[id] = [];
+          }
+        })
+      );
+      if (active) {
+        setHabitatProducts(results);
+        setLoading(false);
+      }
+    };
+    loadAllHabitats();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleAddToCart = (e: React.MouseEvent, product: Product) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    addItem({
+      product: product.id,
+      name: product.name,
+      image: product.image,
+      sku: product.sku || `${product.id}`,
+      quantity: 1,
+      price: product.price,
+      variant: undefined
+    });
+    
+    toggleCartDrawer();
+  };
+
+  const toggleWishlist = (e: React.MouseEvent, productId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setWishlist(prev => ({ ...prev, [productId]: !prev[productId] }));
+  };
+
+  const selectedHabitat = habitatMetadata.find(h => h.id === selectedId);
+  const activeProducts = selectedId ? (habitatProducts[selectedId] || []) : [];
 
   return (
     <div className="relative w-full">
@@ -216,7 +210,7 @@ export default function ExploreTheirWorld() {
 
       {/* SINGLE ROW OF SQUARE CARDS (Centered) */}
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: '1.5rem', width: '100%' }}>
-        {habitats.map((habitat) => (
+        {habitatMetadata.map((habitat) => (
           <motion.div
             layoutId={`habitat-card-${habitat.id}`}
             key={habitat.id}
@@ -295,7 +289,7 @@ export default function ExploreTheirWorld() {
             <div style={{ position: 'relative', zIndex: 10, width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
 
               {/* Top Row: Title, Desc, and Glass wrapper */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', backgroundColor: selectedHabitat.bgColor + 'e6', backdropFilter: 'blur(20px)', padding: '1.5rem 2.5rem', borderRadius: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', width: '100%', backgroundColor: selectedHabitat.bgColor + 'e6', backdropFilter: 'blur(20px)', padding: '1.5rem 2.5rem', borderRadius: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', marginBottom: '1.5rem', justifyContent: 'space-between' }}>
 
                 {/* Left Side: Title & Desc */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
@@ -337,50 +331,94 @@ export default function ExploreTheirWorld() {
                 </motion.div>
               </div>
 
-              {/* Grid Section: 5 columns, 2 rows */}
+              {/* Grid Section: Dynamic responsive layout */}
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
                 style={{ width: '100%', flex: 1, display: 'flex', flexDirection: 'column' }}
               >
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gap: '1rem', height: '100%' }}>
-                  {selectedHabitat.products.map((product, idx) => (
-                    <div
-                      key={idx}
-                      style={{ backgroundColor: selectedHabitat.accentColor, borderRadius: '20px', padding: '10px', display: 'flex', flexDirection: 'column', cursor: 'pointer', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
-                    >
-                      {/* Image Area */}
-                      <div style={{ backgroundColor: '#fff', borderRadius: '14px', height: '120px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                        <button style={{ position: 'absolute', top: '6px', right: '6px', width: '24px', height: '24px', backgroundColor: selectedHabitat.accentColor, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', border: 'none', cursor: 'pointer', zIndex: 10 }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                        </button>
-
-                        {/* Real Product Image */}
-                        <motion.img
-                          src={product.image}
-                          alt={product.name}
-                          style={{ width: '85%', height: '100%', objectFit: 'contain', zIndex: 0 }}
-                          whileHover={{ scale: 1.1, rotate: [-2, 2, -2, 0] }}
-                          transition={{ duration: 0.3 }}
-                        />
-                      </div>
-
-                      {/* Info Area */}
-                      <div style={{ padding: '10px 6px 4px', display: 'flex', flexDirection: 'column', textAlign: 'left', flexGrow: 1 }}>
-                        <h3 style={{ color: '#fff', fontWeight: 'bold', fontSize: '0.9rem', letterSpacing: '-0.02em', margin: '0 0 2px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</h3>
-                        <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.75rem', fontWeight: 600, margin: '0 0 auto 0' }}>{product.brand}</span>
-
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
-                          <span style={{ color: '#fff', fontWeight: 900, fontSize: '1.2rem', letterSpacing: '-0.05em' }}>{product.price}</span>
-                          {/* Shopping Bag Button */}
-                          <button style={{ width: '28px', height: '28px', backgroundColor: '#fff', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: selectedHabitat.accentColor, border: 'none', cursor: 'pointer' }}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                  gap: '1.25rem',
+                  width: '100%',
+                  maxHeight: '68vh',
+                  overflowY: 'auto',
+                  paddingRight: '6px'
+                }}>
+                  {activeProducts.map((product) => {
+                    const isWish = !!wishlist[product.id];
+                    return (
+                      <Link
+                        key={product.id}
+                        to={`/products/${product.slug}`}
+                        onClick={() => setSelectedId(null)}
+                        style={{
+                          backgroundColor: selectedHabitat.accentColor,
+                          borderRadius: '20px',
+                          padding: '10px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          cursor: 'pointer',
+                          boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+                          textDecoration: 'none',
+                          color: 'inherit',
+                          transition: 'all 200ms ease'
+                        }}
+                      >
+                        {/* Image Area */}
+                        <div style={{ backgroundColor: '#fff', borderRadius: '14px', height: '130px', position: 'relative', display: 'flex', alignItems: 'center', overflow: 'hidden', justifyContent: 'center' }}>
+                          <button
+                            onClick={(e) => toggleWishlist(e, product.id)}
+                            style={{ position: 'absolute', top: '6px', right: '6px', width: '26px', height: '26px', backgroundColor: isWish ? '#ef4444' : selectedHabitat.accentColor, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', border: 'none', cursor: 'pointer', zIndex: 10, transition: 'all 200ms ease' }}
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill={isWish ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                            </svg>
                           </button>
+
+                          {/* Real Product Image */}
+                          <motion.img
+                            src={product.image}
+                            alt={product.name}
+                            style={{ width: '85%', height: '100%', objectFit: 'contain', zIndex: 0 }}
+                            whileHover={{ scale: 1.1, rotate: [-2, 2, -2, 0] }}
+                            transition={{ duration: 0.3 }}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=400&auto=format&fit=crop';
+                            }}
+                          />
                         </div>
-                      </div>
+
+                        {/* Info Area */}
+                        <div style={{ padding: '10px 6px 4px', display: 'flex', flexDirection: 'column', textAlign: 'left', flexGrow: 1, gap: '2px' }}>
+                          <h3 style={{ color: '#fff', fontWeight: 'bold', fontSize: '0.9rem', letterSpacing: '-0.02em', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</h3>
+                          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.75rem', fontWeight: 600, margin: '0 0 auto 0' }}>{product.brand || 'PawMart Premium'}</span>
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '6px' }}>
+                            <span style={{ color: '#fff', fontWeight: 900, fontSize: '1.25rem', letterSpacing: '-0.04em' }}>₹{product.price.toLocaleString('en-IN')}</span>
+                            {/* Shopping Bag Button */}
+                            <button
+                              onClick={(e) => handleAddToCart(e, product)}
+                              style={{ width: '30px', height: '30px', backgroundColor: '#fff', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: selectedHabitat.accentColor, border: 'none', cursor: 'pointer', transition: 'all 200ms ease' }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+                            </button>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+
+                  {activeProducts.length === 0 && !loading && (
+                    <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: '3rem', opacity: 0.9 }}>
+                      <span style={{ fontSize: '3rem' }}>🐾</span>
+                      <p style={{ fontWeight: 'bold', marginTop: '1rem' }}>No products found in this habitat yet.</p>
+                      <p style={{ fontSize: '0.9rem', opacity: 0.8 }}>Check back later as we populate our virtual shelves!</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </motion.div>
             </div>

@@ -16,34 +16,90 @@ import {
 } from 'lucide-react';
 import { mockProducts } from '../data/mockProducts';
 import { useCartStore } from '../store/cart.store';
+import { getProductBySlug, getProducts } from '../api/webApi';
 import ProductCard from '../components/shop/ProductCard';
 
 export default function ProductDetail() {
   const { slug } = useParams<{ slug: string }>();
-  const product = mockProducts.find((p) => p.slug === slug);
+  const [product, setProduct] = useState<any | null>(null);
+  const [dbProducts, setDbProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const addItem = useCartStore((s) => s.addItem);
   const toggleCartDrawer = useCartStore((s) => s.toggleDrawer);
 
   // States
   const [selectedImage, setSelectedImage] = useState<string>('');
-  const [selectedSize, setSelectedSize] = useState<string>('');
-  const [selectedFlavor, setSelectedFlavor] = useState<string>('');
+  const [selectedVariant, setSelectedVariant] = useState<any | null>(null);
   const [quantity, setQuantity] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<'specs' | 'reviews'>('specs');
   const [isWishlisted, setIsWishlisted] = useState<boolean>(false);
   const [isAdding, setIsAdding] = useState<boolean>(false);
 
-  // Set default values when product loads
+  // Load product detail live from backend API
   useEffect(() => {
-    if (product) {
-      setSelectedImage(product.image);
-      setSelectedSize(product.sizes?.[0] || '');
-      setSelectedFlavor(product.flavors?.[0] || '');
-      setQuantity(1);
-      window.scrollTo(0, 0);
-    }
+    let active = true;
+    const loadDetail = async () => {
+      if (!slug) return;
+      setLoading(true);
+      try {
+        const prod = await getProductBySlug(slug);
+        if (active) {
+          if (prod) {
+            setProduct(prod);
+            setSelectedImage(prod.image);
+            setQuantity(1);
+            
+            // Set default variant if present
+            if (prod.variants && prod.variants.length > 0) {
+              setSelectedVariant(prod.variants[0]);
+            } else {
+              setSelectedVariant(null);
+            }
+          } else {
+            setProduct(null);
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('Failed to load product detail:', err);
+        if (active) setLoading(false);
+      }
+    };
+    loadDetail();
+    return () => {
+      active = false;
+    };
+  }, [slug]);
+
+  // Load related products live
+  useEffect(() => {
+    let active = true;
+    const loadRelated = async () => {
+      if (!product) return;
+      try {
+        const res = await getProducts({ petCategory: product.category, limit: 10 });
+        if (active) {
+          const filtered = res.products.filter((p) => p.id !== product.id).slice(0, 4);
+          setDbProducts(filtered);
+        }
+      } catch (err) {
+        console.error('Failed to load related products:', err);
+      }
+    };
+    loadRelated();
+    return () => {
+      active = false;
+    };
   }, [product]);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', backgroundColor: 'var(--color-bg)' }}>
+        <div className="spinner" />
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -67,29 +123,29 @@ export default function ProductDetail() {
     );
   }
 
-  const discount = product.originalPrice
-    ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+  // Dynamic calculated key-values based on active selected variant or base product
+  const activePrice = selectedVariant ? selectedVariant.price : product.price;
+  const activeOriginalPrice = selectedVariant ? selectedVariant.comparePrice : product.originalPrice;
+  const activeSku = selectedVariant ? selectedVariant.sku : product.sku || 'N/A';
+  const activeStock = selectedVariant ? selectedVariant.stock : product.stock || 0;
+  const activeWeight = selectedVariant ? selectedVariant.weight : product.weight;
+
+  const discount = activeOriginalPrice
+    ? Math.round(((activeOriginalPrice - activePrice) / activeOriginalPrice) * 100)
     : 0;
 
-  // Add item handler
+  // Add item handler using the selected variant SKU & price
   const handleAddToCart = () => {
     setIsAdding(true);
 
-    const sizeSkuPart = selectedSize ? `-${selectedSize.replace(/\s+/g, '')}` : '';
-    const flavorSkuPart = selectedFlavor ? `-${selectedFlavor.replace(/\s+/g, '')}` : '';
-    const uniqueSku = `${product.id}${sizeSkuPart}${flavorSkuPart}`;
-
-    const variantLabel = [selectedSize, selectedFlavor].filter(Boolean).join(' / ');
-
     addItem({
-      product: product.id,
+      product: product._id || product.id,
       name: product.name,
       image: product.image,
-      sku: uniqueSku,
+      sku: activeSku,
       quantity,
-      price: product.price,
-      variant: variantLabel || undefined,
-      size: selectedSize || undefined,
+      price: activePrice,
+      variant: selectedVariant?.label || undefined,
     });
 
     setTimeout(() => {
@@ -99,9 +155,7 @@ export default function ProductDetail() {
   };
 
   // Filter related products
-  const relatedProducts = mockProducts
-    .filter((p) => p.category === product.category && p.id !== product.id)
-    .slice(0, 4);
+  const relatedProducts = dbProducts;
 
   // Dynamic colors matching categories
   const getCategoryTheme = () => {
@@ -173,6 +227,7 @@ export default function ProductDetail() {
   };
 
   return (
+
     <div data-theme={getCategoryTheme()} className="min-h-screen bg-gray-50/50 pb-20 pt-6" style={{ minHeight: '100vh', backgroundColor: 'var(--color-bg)', padding: '2rem 0 5rem 0' }}>
       <div className="container mx-auto px-4" style={{ maxWidth: 1280, margin: '0 auto', padding: '0 1.5rem' }}>
         {/* Breadcrumbs */}
@@ -224,7 +279,7 @@ export default function ProductDetail() {
             {/* Thumbnails row */}
             {product.images && product.images.length > 1 && (
               <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none" style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-                {product.images.map((img, idx) => (
+                {product.images.map((img: string, idx: number) => (
                   <button
                     key={idx}
                     onClick={() => setSelectedImage(img)}
@@ -284,15 +339,15 @@ export default function ProductDetail() {
               {/* Price block */}
               <div className="mt-4 flex items-baseline gap-4" style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem', marginTop: '1rem' }}>
                 <span className="text-2xl font-extrabold text-gray-900" style={{ fontSize: '1.8rem', fontWeight: 950, color: '#2d2418', letterSpacing: '-0.02em' }}>
-                  ₹{product.price.toLocaleString('en-IN')}
+                  ₹{activePrice.toLocaleString('en-IN')}
                 </span>
-                {product.originalPrice && (
+                {activeOriginalPrice && (
                   <>
                     <span className="text-sm font-semibold text-gray-400 line-through" style={{ fontSize: '0.9rem', fontWeight: 650, color: '#bbb', textDecoration: 'line-through' }}>
-                      ₹{product.originalPrice.toLocaleString('en-IN')}
+                      ₹{activeOriginalPrice.toLocaleString('en-IN')}
                     </span>
                     <span className="text-xs font-bold text-red-500 rounded-md bg-red-50 px-2 py-0.5 border border-red-100" style={{ fontSize: '0.75rem', fontWeight: 800, color: '#ef4444', backgroundColor: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 6, padding: '2px 8px' }}>
-                      Save ₹{(product.originalPrice - product.price).toLocaleString('en-IN')}
+                      -{discount}% OFF
                     </span>
                   </>
                 )}
@@ -303,57 +358,57 @@ export default function ProductDetail() {
                 {product.description}
               </p>
 
-              {/* Sizes Variant Selector */}
-              {product.sizes && product.sizes.length > 0 && (
-                <div className="mt-6" style={{ marginTop: '1.5rem' }}>
-                  <h4 className="text-[10px] font-extrabold tracking-wider text-gray-400 uppercase mb-3" style={{ margin: '0 0 0.5rem 0', fontSize: '0.65rem', fontWeight: 800, color: '#8a7e72', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                    Select Size
-                  </h4>
-                  <div className="flex flex-wrap gap-3" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-                    {product.sizes.map((size) => (
-                      <button
-                        key={size}
-                        onClick={() => setSelectedSize(size)}
-                        className={`rounded-full px-4 py-2 text-xs font-extrabold transition-all border ${selectedSize === size
-                          ? 'bg-orange-500 border-orange-500 text-white shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                          }`}
-                        style={{
-                          borderRadius: 9999,
-                          padding: '0.5rem 1.25rem',
-                          fontFamily: 'var(--font-display)',
-                          fontSize: '0.78rem',
-                          fontWeight: 800,
-                          cursor: 'pointer',
-                          transition: 'all 200ms ease',
-                          border: selectedSize === size ? '1.5px solid var(--color-brand)' : '1.5px solid rgba(0,0,0,0.08)',
-                          backgroundColor: selectedSize === size ? 'var(--color-brand)' : '#fff',
-                          color: selectedSize === size ? '#fff' : '#4a4036',
-                          boxShadow: selectedSize === size ? '0 4px 10px var(--color-brand-light)' : 'none',
-                        }}
-                      >
-                        {size}
-                      </button>
-                    ))}
-                  </div>
+              {/* Database Attributes Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem', backgroundColor: '#faf8f5', borderRadius: '16px', padding: '1rem', border: '1px solid rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#8a7e72', textTransform: 'uppercase' }}>Brand</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#2d2418' }}>{product.brand || 'PawMart Premium'}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#8a7e72', textTransform: 'uppercase' }}>SKU Code</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#2d2418', fontFamily: 'monospace' }}>{activeSku}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#8a7e72', textTransform: 'uppercase' }}>Availability</span>
+                  {activeStock === 0 ? (
+                    <span style={{ fontSize: '0.85rem', fontWeight: 950, color: '#ef4444' }}>Out of Stock</span>
+                  ) : activeStock <= (product.lowStockThreshold || 5) ? (
+                    <span style={{ fontSize: '0.85rem', fontWeight: 950, color: '#d97706', backgroundColor: '#fffbeb', padding: '1px 6px', borderRadius: '4px', width: 'fit-content' }}>Only {activeStock} Left!</span>
+                  ) : (
+                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#16a34a' }}>In Stock ({activeStock} items)</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#8a7e72', textTransform: 'uppercase' }}>Item Weight</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#2d2418' }}>
+                    {activeWeight ? (activeWeight >= 1000 ? `${(activeWeight / 1000).toFixed(1)} kg` : `${activeWeight} g`) : 'N/A'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Tags Badges Row */}
+              {product.tags && product.tags.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '1rem' }}>
+                  {product.tags.map((tag: string) => (
+                    <span key={tag} style={{ fontSize: '0.68rem', padding: '4px 10px', borderRadius: '8px', backgroundColor: '#f5f0eb', border: '1px solid #e5ddd4', color: '#6b5e52', fontWeight: 700 }}>
+                      #{tag}
+                    </span>
+                  ))}
                 </div>
               )}
 
-              {/* Flavors Variant Selector */}
-              {product.flavors && product.flavors.length > 0 && (
+              {/* Dynamic Option Variant Selector */}
+              {product.variants && product.variants.length > 0 && (
                 <div className="mt-6" style={{ marginTop: '1.5rem' }}>
                   <h4 className="text-[10px] font-extrabold tracking-wider text-gray-400 uppercase mb-3" style={{ margin: '0 0 0.5rem 0', fontSize: '0.65rem', fontWeight: 800, color: '#8a7e72', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                    Select Flavor / Style
+                    Select Option / Pack Size
                   </h4>
                   <div className="flex flex-wrap gap-3" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-                    {product.flavors.map((flavor) => (
+                    {product.variants.map((v: any) => (
                       <button
-                        key={flavor}
-                        onClick={() => setSelectedFlavor(flavor)}
-                        className={`rounded-full px-4 py-2 text-xs font-extrabold transition-all border ${selectedFlavor === flavor
-                          ? 'bg-orange-500 border-orange-500 text-white shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                          }`}
+                        key={v.sku}
+                        onClick={() => setSelectedVariant(v)}
+                        className={`rounded-full px-4 py-2 text-xs font-extrabold transition-all border`}
                         style={{
                           borderRadius: 9999,
                           padding: '0.5rem 1.25rem',
@@ -362,13 +417,13 @@ export default function ProductDetail() {
                           fontWeight: 800,
                           cursor: 'pointer',
                           transition: 'all 200ms ease',
-                          border: selectedFlavor === flavor ? '1.5px solid var(--color-brand)' : '1.5px solid rgba(0,0,0,0.08)',
-                          backgroundColor: selectedFlavor === flavor ? 'var(--color-brand)' : '#fff',
-                          color: selectedFlavor === flavor ? '#fff' : '#4a4036',
-                          boxShadow: selectedFlavor === flavor ? '0 4px 10px var(--color-brand-light)' : 'none',
+                          border: selectedVariant?.sku === v.sku ? '1.5px solid var(--color-brand)' : '1.5px solid rgba(0,0,0,0.08)',
+                          backgroundColor: selectedVariant?.sku === v.sku ? 'var(--color-brand)' : '#fff',
+                          color: selectedVariant?.sku === v.sku ? '#fff' : '#4a4036',
+                          boxShadow: selectedVariant?.sku === v.sku ? '0 4px 10px var(--color-brand-light)' : 'none',
                         }}
                       >
-                        {flavor}
+                        {v.label} (₹{v.price})
                       </button>
                     ))}
                   </div>
@@ -573,7 +628,7 @@ export default function ProductDetail() {
                   {Object.entries(product.specs).map(([key, val]) => (
                     <div key={key} className="flex justify-between border-b border-gray-50 pb-2 text-xs" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f3ebe1', paddingBottom: '0.5rem', fontSize: '0.8rem' }}>
                       <span className="text-gray-400 font-medium" style={{ color: '#8a7e72', fontWeight: 550 }}>{key}</span>
-                      <span className="text-gray-700 font-extrabold" style={{ color: '#2d2418', fontWeight: 800 }}>{val}</span>
+                      <span className="text-gray-700 font-extrabold" style={{ color: '#2d2418', fontWeight: 800 }}>{val as any}</span>
                     </div>
                   ))}
                 </div>
@@ -585,7 +640,7 @@ export default function ProductDetail() {
                     <span>Product Highlights</span>
                   </h3>
                   <ul className="flex flex-col gap-3" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', listStyle: 'none' }}>
-                    {product.features.map((feat, idx) => (
+                    {product.features.map((feat: string, idx: number) => (
                       <li key={idx} className="flex items-start gap-2 text-xs text-gray-600" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.8rem', color: '#4a4036', fontWeight: 550 }}>
                         <Check className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0 stroke-[3]" style={{ color: '#22c55e', flexShrink: 0, marginTop: 2 }} />
                         <span>{feat}</span>
@@ -604,7 +659,7 @@ export default function ProductDetail() {
                 className="flex flex-col gap-6"
                 style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
               >
-                {product.reviews.map((rev) => (
+                {product.reviews.map((rev: any) => (
                   <div key={rev.id} className="border-b border-gray-100 pb-5 last:border-b-0 last:pb-0" style={{ borderBottom: '1px solid #f3ebe1', paddingBottom: '1.25rem' }}>
                     <div className="flex items-center justify-between mb-2" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

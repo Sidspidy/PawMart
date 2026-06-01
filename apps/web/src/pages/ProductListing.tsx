@@ -12,7 +12,8 @@ import {
   SlidersHorizontal,
   X,
 } from 'lucide-react';
-import { mockProducts } from '../data/mockProducts';
+import { Product } from '../data/mockProducts';
+import { getProducts, getCategories, CategoryData } from '../api/webApi';
 import ProductCard from '../components/shop/ProductCard';
 import CatalogSkeleton from '../components/shop/CatalogSkeleton';
 
@@ -21,6 +22,10 @@ export default function ProductListing() {
   const queryParam = searchParams.get('q') || '';
   const categoryParam = searchParams.get('category') || 'all';
   const subcategoryParam = searchParams.get('subcategory') || 'all';
+
+  // Live Database States
+  const [dbProducts, setDbProducts] = useState<Product[]>([]);
+  const [dbCategories, setDbCategories] = useState<CategoryData[]>([]);
 
   // Filters State
   const [selectedCategory, setSelectedCategory] = useState<string>(categoryParam);
@@ -31,7 +36,7 @@ export default function ProductListing() {
   const [minRating, setMinRating] = useState<number>(0);
   const [onlySale, setOnlySale] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<string>('bestseller');
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState<boolean>(false);
 
   // Sync state if URL changes
@@ -44,22 +49,56 @@ export default function ProductListing() {
     }
   }, [categoryParam, subcategoryParam]);
 
-  // Simulate loading state on filter change for polished UX
+  // Fetch products and categories dynamically on filter/sort change
   useEffect(() => {
-    setLoading(true);
-    const timer = setTimeout(() => setLoading(false), 400);
-    return () => clearTimeout(timer);
-  }, [selectedCategory, selectedSubcategories, priceRange, minRating, onlySale, sortBy, queryParam]);
+    let active = true;
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        let apiSort = 'newest';
+        if (sortBy === 'price-low') apiSort = 'price_asc';
+        if (sortBy === 'price-high') apiSort = 'price_desc';
+        if (sortBy === 'rating') apiSort = 'rating';
+        if (sortBy === 'bestseller') apiSort = 'bestseller';
+
+        const [catsRes, productsRes] = await Promise.all([
+          dbCategories.length === 0 ? getCategories() : Promise.resolve(dbCategories),
+          getProducts({
+            petCategory: selectedCategory,
+            q: queryParam,
+            sort: apiSort,
+            limit: 50
+          })
+        ]);
+
+        if (active) {
+          if (dbCategories.length === 0) setDbCategories(catsRes);
+          setDbProducts(productsRes.products);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('Failed to load products/categories:', err);
+        if (active) setLoading(false);
+      }
+    };
+
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, [selectedCategory, sortBy, queryParam]);
 
   // Handle category top pills click
   const handleCategoryPill = (catId: string) => {
     setSelectedCategory(catId);
+    setSelectedSubcategories([]); // Clear subcategories when switching pets
     const newParams = new URLSearchParams(searchParams);
     if (catId === 'all') {
       newParams.delete('category');
     } else {
       newParams.set('category', catId);
     }
+    newParams.delete('subcategory');
     setSearchParams(newParams);
   };
 
@@ -83,65 +122,41 @@ export default function ProductListing() {
     setSearchParams({});
   };
 
-  // Filtering Logic
-  const filteredProducts = mockProducts.filter((product) => {
-    // 1. Search Query filter (matches name, description, category, subcategory)
-    if (queryParam) {
-      const q = queryParam.toLowerCase();
-      const matchesSearch =
-        product.name.toLowerCase().includes(q) ||
-        product.description.toLowerCase().includes(q) ||
-        product.category.toLowerCase().includes(q) ||
-        product.subcategory.toLowerCase().includes(q);
-      if (!matchesSearch) return false;
-    }
-
-    // 2. Pet Category filter
-    if (selectedCategory !== 'all' && product.category !== selectedCategory) {
-      return false;
-    }
-
-    // 3. Subcategory / Product Type filter
-    if (
-      selectedSubcategories.length > 0 &&
-      !selectedSubcategories.includes(product.subcategory)
-    ) {
-      return false;
-    }
-
-    // 4. Price range filter
+  // Secondary Client-side Filtering Logic for fast, lag-free sliding/clicking
+  const filteredProducts = dbProducts.filter((product) => {
+    // 1. Price range filter
     if (product.price > priceRange) {
       return false;
     }
 
-    // 5. Rating filter
+    // 2. Rating filter
     if (product.rating < minRating) {
       return false;
     }
 
-    // 6. Only Sale filter
-    if (onlySale && product.badge !== 'sale' && !product.originalPrice) {
-      return false;
+    // 3. Subcategory (DB Category) filter
+    if (selectedSubcategories.length > 0) {
+      const productCatId = typeof product.dbCategory === 'object' && product.dbCategory !== null
+        ? product.dbCategory._id
+        : '';
+      const productCatSlug = typeof product.dbCategory === 'object' && product.dbCategory !== null
+        ? product.dbCategory.slug
+        : '';
+      const hasMatch = selectedSubcategories.includes(productCatId) || selectedSubcategories.includes(productCatSlug);
+      if (!hasMatch) return false;
+    }
+
+    // 4. Only Sale filter
+    if (onlySale) {
+      const isPromo = product.originalPrice && product.originalPrice > product.price;
+      const isSaleBadge = product.badge === 'sale';
+      if (!isPromo && !isSaleBadge) return false;
     }
 
     return true;
   });
 
-  // Sorting Logic
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
-    if (sortBy === 'price-low') return a.price - b.price;
-    if (sortBy === 'price-high') return b.price - a.price;
-    if (sortBy === 'rating') return b.rating - a.rating;
-    if (sortBy === 'newest') {
-      const aVal = a.badge === 'new' ? 1 : 0;
-      const bVal = b.badge === 'new' ? 1 : 0;
-      return bVal - aVal;
-    }
-    // Default 'bestseller'
-    const aVal = a.badge === 'bestseller' ? 1 : 0;
-    const bVal = b.badge === 'bestseller' ? 1 : 0;
-    return bVal - aVal;
-  });
+  const sortedProducts = filteredProducts;
 
   const categoriesList = [
     { id: 'all', label: 'All Pets' },
@@ -152,12 +167,16 @@ export default function ProductListing() {
     { id: 'small_pets', label: 'Small Pets' },
   ];
 
-  const subcategoriesList = [
-    { id: 'food', label: 'Food & Nutrition' },
-    { id: 'toys', label: 'Toys & Playtime' },
-    { id: 'accessories', label: 'Beds & Cages' },
-    { id: 'care', label: 'Litter & Hygiene' },
-  ];
+  // Dynamically compute subcategories from loaded DB categories
+  const activeDbCategories = dbCategories.filter((cat) =>
+    selectedCategory === 'all' || cat.petCategory === selectedCategory
+  );
+
+  const subcategoriesList = activeDbCategories.map((cat) => ({
+    id: cat._id,
+    label: cat.name
+  }));
+
 
   return (
     <div className="min-h-screen bg-gray-50/50 pb-20 pt-8" style={{ minHeight: '100vh', backgroundColor: 'var(--color-bg)', padding: '2.5rem 0 5rem 0' }}>
@@ -439,7 +458,7 @@ export default function ProductListing() {
               }}
             >
               <span className="text-xs font-bold text-gray-500" style={{ fontSize: '0.75rem', fontWeight: 800, color: '#8a7e72' }}>
-                Showing {sortedProducts.length} of {mockProducts.length} Products
+                Showing {sortedProducts.length} of {dbProducts.length} Products
               </span>
 
               <div className="flex items-center gap-2" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

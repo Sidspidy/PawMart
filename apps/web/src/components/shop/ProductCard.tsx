@@ -213,7 +213,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         </div>
 
         {/* Product Details */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem' }}>
           {/* Subcategory & Rating */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span
@@ -245,17 +245,31 @@ export default function ProductCard({ product }: ProductCardProps) {
             </div>
           </div>
 
+          {/* Brand & SKU Info Row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.7rem' }}>
+            {product.brand && (
+              <span style={{ fontWeight: 800, color: 'var(--color-brand-dark)', backgroundColor: 'var(--color-brand-light)', padding: '2px 6px', borderRadius: '6px' }}>
+                {product.brand}
+              </span>
+            )}
+            {product.sku && (
+              <span style={{ fontFamily: 'monospace', color: '#8a7e72', fontWeight: 600 }}>
+                {product.sku}
+              </span>
+            )}
+          </div>
+
           {/* Product Name */}
           <h3
             style={{
               fontSize: '1.02rem',
               fontWeight: 800,
               color: isHovered ? 'var(--color-brand)' : '#2d2418',
-              margin: 0,
+              margin: '0.1rem 0 0 0',
               fontFamily: 'var(--font-display)',
               letterSpacing: '-0.01em',
-              lineHeight: 1.35,
-              height: '2.7rem',
+              lineHeight: 1.3,
+              height: '2.6rem',
               overflow: 'hidden',
               display: '-webkit-box',
               WebkitLineClamp: 2,
@@ -265,6 +279,27 @@ export default function ProductCard({ product }: ProductCardProps) {
           >
             {product.name}
           </h3>
+
+          {/* Stock Status & Tags Row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.3rem', minHeight: '18px' }}>
+            {product.stock !== undefined && (
+              product.stock === 0 ? (
+                <span style={{ fontSize: '0.68rem', color: '#ef4444', fontWeight: 800 }}>Out of Stock</span>
+              ) : product.stock <= (product.lowStockThreshold || 5) ? (
+                <span style={{ fontSize: '0.68rem', color: '#d97706', fontWeight: 800, backgroundColor: '#fffbeb', padding: '1px 6px', borderRadius: '4px' }}>Only {product.stock} left!</span>
+              ) : (
+                <span style={{ fontSize: '0.68rem', color: '#16a34a', fontWeight: 700 }}>In Stock</span>
+              )
+            )}
+
+            <div style={{ display: 'flex', gap: '0.25rem' }}>
+              {product.tags && product.tags.slice(0, 2).map((tag: string) => (
+                <span key={tag} style={{ fontSize: '0.62rem', padding: '1px 5px', borderRadius: '4px', backgroundColor: '#faf8f5', border: '1px solid #e5ddd4', color: '#6b5e52', fontWeight: 600 }}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
 
           {/* Price Block */}
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: '0.4rem' }}>
