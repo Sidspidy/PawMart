@@ -18,6 +18,7 @@ import webOrderRoutes from './routes/web/order.routes';
 import webPaymentRoutes from './routes/web/payment.routes';
 import webCouponRoutes from './routes/web/coupon.routes';
 import webPointsRoutes from './routes/web/points.routes';
+import webAddressRoutes from './routes/web/address.routes';
 
 import adminDashboardRoutes from './routes/admin/dashboard.routes';
 import adminProductRoutes from './routes/admin/product.routes';
@@ -42,15 +43,17 @@ app.use(
   })
 );
 
-// ── Global rate limiter ───────────────────────────────────────────────────────
-const globalLimiter = rateLimit({
-  windowMs: env.RATE_LIMIT_WINDOW_MS,
-  max: env.RATE_LIMIT_MAX,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, message: 'Too many requests. Please slow down.' },
-});
-app.use(globalLimiter);
+// ── Global rate limiter (Production only) ───────────────────────────────────────
+if (env.NODE_ENV === 'production') {
+  const globalLimiter = rateLimit({
+    windowMs: env.RATE_LIMIT_WINDOW_MS,
+    max: env.RATE_LIMIT_MAX,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests. Please slow down.' },
+  });
+  app.use(globalLimiter);
+}
 
 // ── Body parsing ──────────────────────────────────────────────────────────────
 // Raw body for Razorpay webhook signature verification
@@ -90,6 +93,7 @@ app.use('/api/orders', webOrderRoutes);
 app.use('/api/payment', webPaymentRoutes);
 app.use('/api/coupons', webCouponRoutes);
 app.use('/api/points', webPointsRoutes);
+app.use('/api/addresses', webAddressRoutes);
 
 // ── API Routes (Admin Dashboard Management APIs) ─────────────────────────────
 app.use('/api/admin/dashboard', adminDashboardRoutes);

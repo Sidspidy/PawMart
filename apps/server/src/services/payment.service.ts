@@ -17,6 +17,8 @@ export interface CreatePaymentOrderInput {
   currency?: string;
   receipt?: string;
   notes?: Record<string, string>;
+  customerId?: string;
+  customerPhone?: string;
 }
 
 export interface PaymentOrderResult {
@@ -31,13 +33,15 @@ export interface PaymentOrderResult {
 export const createPaymentOrder = async (
   input: CreatePaymentOrderInput
 ): Promise<PaymentOrderResult> => {
-  const { gateway, amount, currency = 'INR', receipt } = input;
+  const { gateway, amount, currency = 'INR', receipt, customerId, customerPhone } = input;
 
   switch (gateway) {
     case PaymentGateway.RAZORPAY:
       return createRazorpayOrder(amount, currency, receipt);
     case PaymentGateway.STRIPE:
       return createStripeIntent(amount, currency);
+    case PaymentGateway.CASHFREE:
+      return createCashfreeOrder(amount, currency, receipt, customerId, customerPhone);
     case PaymentGateway.COD:
       return { orderId: `COD-${Date.now()}`, amount, currency, gateway: PaymentGateway.COD };
     default:
@@ -92,6 +96,58 @@ const createStripeIntent = async (
     currency,
     gateway: PaymentGateway.STRIPE,
     clientSecret: intent.client_secret,
+    keyId: env.STRIPE_PUBLISHABLE_KEY,
+  };
+};
+
+const createCashfreeOrder = async (
+  amount: number,
+  currency: string,
+  receipt?: string,
+  customerId?: string,
+  customerPhone?: string
+): Promise<PaymentOrderResult> => {
+  const { env } = await import('../config/env');
+  const isSandbox = !env.NODE_ENV || env.NODE_ENV !== 'production';
+  const url = isSandbox
+    ? 'https://sandbox.cashfree.com/pg/orders'
+    : 'https://api.cashfree.com/pg/orders';
+
+  const body = {
+    order_amount: amount,
+    order_currency: currency,
+    order_id: receipt ?? `order_${Date.now()}`,
+    customer_details: {
+      customer_id: customerId ?? `cust_${Date.now()}`,
+      customer_phone: customerPhone ?? '9999999999',
+    },
+    order_meta: {
+      return_url: `${env.CLIENT_ORIGIN}/checkout/confirmation?order_id={order_id}`,
+    },
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'x-client-id': env.CASHFREE_APP_ID ?? '',
+      'x-client-secret': env.CASHFREE_SECRET_KEY ?? '',
+      'x-api-version': '2023-08-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data: any = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Cashfree order creation failed');
+  }
+
+  return {
+    orderId: data.order_id,
+    amount,
+    currency,
+    gateway: PaymentGateway.CASHFREE,
+    clientSecret: data.payment_session_id,
   };
 };
 

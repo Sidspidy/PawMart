@@ -1,14 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { CheckCircle, Package, MapPin, Clock, ArrowRight, Star, Share2, Download, Home } from 'lucide-react';
-
-// Generate a short order ID
-const generateOrderId = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const prefix = 'PAW';
-  const rand = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  return `${prefix}${rand}`;
-};
+import { api } from '../../api';
 
 const ESTIMATED_DATE = () => {
   const d = new Date();
@@ -24,7 +17,17 @@ const ORDER_STEPS = [
 ];
 
 export default function OrderConfirmation() {
-  const [orderId] = useState(generateOrderId);
+  const location = useLocation();
+  const [order, setOrder] = useState<any>(location.state?.order || null);
+  const [address, setAddress] = useState<any>(location.state?.shippingAddress || null);
+  const [loading, setLoading] = useState(false);
+
+  const orderId = order?.orderNumber || 'PM-CONFIRMED';
+  const pointsEarned = order?.pointsEarned || 150;
+  const addressText = address
+    ? `${address.fullName}, ${address.line1 || address.addressLine1 || ''}, ${address.city} - ${address.pincode}`
+    : 'Your saved address';
+
   const [deliveryDate] = useState(ESTIMATED_DATE);
   const [showConfetti, setShowConfetti] = useState(false);
   const [animIn, setAnimIn] = useState(false);
@@ -36,7 +39,60 @@ export default function OrderConfirmation() {
     setTimeout(() => setAnimIn(true), 100);
     setTimeout(() => setShowConfetti(true), 300);
     setTimeout(() => setShowConfetti(false), 3500);
-  }, []);
+
+    sessionStorage.removeItem('checkout_address');
+    sessionStorage.removeItem('checkout_coupon');
+
+    const query = new URLSearchParams(location.search);
+    const queryOrderId = query.get('order_id');
+    if (queryOrderId && !order) {
+      const verifyAndFetchOrder = async () => {
+        try {
+          setLoading(true);
+          await api.post('/payment/verify', {
+            orderId: queryOrderId,
+            gateway: 'cashfree',
+            cashfreeOrderId: queryOrderId,
+          });
+          const res = await api.get(`/orders/${queryOrderId}`);
+          if (res.data?.success) {
+            const fetchedOrder = res.data.data;
+            setOrder(fetchedOrder);
+            if (fetchedOrder.shippingAddress) {
+              setAddress({
+                fullName: fetchedOrder.shippingAddress.fullName,
+                line1: fetchedOrder.shippingAddress.line1,
+                city: fetchedOrder.shippingAddress.city,
+                pincode: fetchedOrder.shippingAddress.pincode,
+                phone: fetchedOrder.shippingAddress.phone,
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Failed to verify/fetch order:', err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      verifyAndFetchOrder();
+    }
+  }, [location.search, order]);
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#f7f2ec', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ width: '48px', height: '48px', border: '4px solid #e5ddd4', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <span style={{ fontSize: '0.9rem', color: '#8a7e72', fontWeight: 600, fontFamily: "'Nunito', sans-serif" }}>Verifying payment & loading order...</span>
+        </div>
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   // ── Confetti particles ──────────────────────────
   const confettiColors = ['#f97316', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#f59e0b'];
@@ -352,7 +408,7 @@ export default function OrderConfirmation() {
                   <MapPin size={18} color="#22c55e" />
                 </div>
                 <div style={s.infoCardLabel}>Delivery To</div>
-                <div style={s.infoCardValue}>Your saved address</div>
+                <div style={s.infoCardValue}>{addressText}</div>
                 <div style={{ fontSize: '0.73rem', color: '#8a7e72', marginTop: '0.25rem' }}>SMS tracking link sent</div>
               </div>
               <div style={s.infoCard}>
@@ -380,7 +436,7 @@ export default function OrderConfirmation() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#2d2418', fontFamily: "'Nunito', sans-serif", marginBottom: '0.25rem' }}>
-                  You earned 250 PawPoints!
+                  You earned {pointsEarned} PawPoints!
                 </div>
                 <div style={{ fontSize: '0.78rem', color: '#8a7e72' }}>
                   Redeem on your next purchase for extra savings.

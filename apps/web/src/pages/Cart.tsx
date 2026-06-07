@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, Trash2, Plus, Minus, Tag, ArrowRight, Package, ChevronRight, ShieldCheck } from 'lucide-react';
+import {
+  ShoppingCart, Trash2, Plus, Minus, Tag, ArrowRight, Package, ChevronRight, ShieldCheck
+} from 'lucide-react';
 import { useCartStore } from '../store/cart.store';
+import { useAuthStore } from '../store/auth.store';
+import { useToastStore } from '../store/toast.store';
+import { api } from '../api';
 
 const PROMO_CODES: Record<string, number> = {
   PAWMART10: 10,
@@ -12,23 +17,50 @@ const PROMO_CODES: Record<string, number> = {
 export default function Cart() {
   const { items, removeItem, updateQuantity, clearCart, subtotal } = useCartStore();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuthStore();
+  const { addToast } = useToastStore();
   const [promoInput, setPromoInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; pct: number } | null>(null);
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; type: string; value: number } | null>(null);
   const [promoError, setPromoError] = useState('');
   const [removingSkus, setRemovingSkus] = useState<Set<string>>(new Set());
 
   const sub = subtotal();
-  const discount = appliedPromo ? Math.round(sub * (appliedPromo.pct / 100)) : 0;
-  const deliveryFee = sub >= 999 ? 0 : 49;
+  let discount = 0;
+  let deliveryFee = sub >= 999 ? 0 : 49;
+  if (appliedPromo) {
+    if (appliedPromo.type === 'percentage') {
+      discount = Math.round((sub * appliedPromo.value) / 100);
+    } else if (appliedPromo.type === 'flat') {
+      discount = Math.min(appliedPromo.value, sub);
+    } else if (appliedPromo.type === 'free_shipping') {
+      deliveryFee = 0;
+    }
+  }
   const total = sub - discount + deliveryFee;
 
-  const handleApplyPromo = () => {
+  const handleApplyPromo = async () => {
     const code = promoInput.trim().toUpperCase();
-    if (PROMO_CODES[code]) {
-      setAppliedPromo({ code, pct: PROMO_CODES[code] });
+    if (!code) return;
+
+    if (!isAuthenticated) {
+      setPromoError('Please login to apply coupon codes! 🐾');
+      return;
+    }
+
+    try {
       setPromoError('');
-    } else {
-      setPromoError('Invalid promo code. Try PAWMART10');
+      const response = await api.post('/coupons/validate', { code, orderTotal: sub });
+      if (response.data?.success) {
+        const { coupon } = response.data.data;
+        setAppliedPromo({ code: coupon.code, type: coupon.type, value: coupon.value });
+        addToast(`Coupon "${coupon.code}" applied successfully! 🐾`, 'success');
+      } else {
+        setPromoError(response.data?.message || 'Invalid promo code');
+        setAppliedPromo(null);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setPromoError(err.response?.data?.message || 'Invalid promo code. Try PAWMART10');
       setAppliedPromo(null);
     }
   };
@@ -446,7 +478,7 @@ export default function Cart() {
     <div style={styles.page}>
       <div style={styles.container}>
         {/* Header */}
-        <div style={styles.header}>
+        {/* <div style={styles.header}>
           <div style={styles.headerIcon}>
             <ShoppingCart size={22} color="#fff" />
           </div>
@@ -456,7 +488,7 @@ export default function Cart() {
               {items.length === 0 ? 'Empty' : `${items.length} item${items.length > 1 ? 's' : ''}`}
             </p>
           </div>
-        </div>
+        </div> */}
 
         {/* Breadcrumb */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '1.5rem', fontSize: '0.8rem', color: '#8a7e72' }}>
@@ -553,6 +585,8 @@ export default function Cart() {
                   <Package size={15} /> Continue Shopping
                 </Link>
               </div>
+
+
             </div>
 
             {/* Summary Column */}
@@ -594,7 +628,9 @@ export default function Cart() {
                 ) : (
                   <div style={styles.promoSuccess}>
                     <Tag size={14} />
-                    <span>{appliedPromo.code} — {appliedPromo.pct}% OFF applied!</span>
+                    <span>
+                      {appliedPromo.code} — {appliedPromo.type === 'percentage' ? `${appliedPromo.value}% OFF` : appliedPromo.type === 'flat' ? `₹${appliedPromo.value} OFF` : 'Free Shipping'} applied!
+                    </span>
                     <button
                       onClick={() => { setAppliedPromo(null); setPromoInput(''); }}
                       style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#16a34a', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}
@@ -612,7 +648,9 @@ export default function Cart() {
 
                 {discount > 0 && (
                   <div style={styles.summaryRow}>
-                    <span style={styles.summaryLabel}>Discount ({appliedPromo?.pct}%)</span>
+                    <span style={styles.summaryLabel}>
+                      Discount {appliedPromo?.type === 'percentage' ? `(${appliedPromo.value}%)` : appliedPromo?.type === 'flat' ? '(Flat)' : ''}
+                    </span>
                     <span style={styles.summaryDiscount}>−₹{discount.toLocaleString('en-IN')}</span>
                   </div>
                 )}
@@ -633,7 +671,20 @@ export default function Cart() {
 
                 <button
                   style={styles.checkoutBtn}
-                  onClick={() => navigate('/checkout/address')}
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      addToast('Please login first to proceed to checkout! 🐾', 'warning');
+                      navigate('/login');
+                      return;
+                    }
+
+                    if (appliedPromo) {
+                      sessionStorage.setItem('checkout_coupon', JSON.stringify(appliedPromo));
+                    } else {
+                      sessionStorage.removeItem('checkout_coupon');
+                    }
+                    navigate('/checkout/address');
+                  }}
                 >
                   Proceed to Checkout <ArrowRight size={18} />
                 </button>

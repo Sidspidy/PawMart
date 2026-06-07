@@ -1,19 +1,44 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import { useAuthStore } from '../../store/auth.store';
+import { useToastStore } from '../../store/toast.store';
+import { api } from '../../api';
 
-/* ── Wheel Segments ─────────────────────────────────────────── */
-const segments = [
-  { label: 'Bonus Points', icon: '🌟', color: '#f59e0b', lightColor: '#fef3c7', value: '+100 Points' },
-  { label: 'Free Shipping', icon: '🚚', color: '#0ea5e9', lightColor: '#e0f2fe', value: 'Free Shipping' },
-  { label: 'Gift Product', icon: '🎁', color: '#ec4899', lightColor: '#fce7f3', value: 'Free Dog Toy' },
-  { label: '10% Coupon', icon: '🏷️', color: '#22c55e', lightColor: '#dcfce7', value: '10% OFF' },
-  { label: '20% Coupon', icon: '💎', color: '#a855f7', lightColor: '#f3e8ff', value: '20% OFF' },
-  { label: 'Mystery Reward', icon: '✨', color: '#f97316', lightColor: '#fff7ed', value: 'Mystery Gift' },
-  { label: 'Extra Spin', icon: '🔄', color: '#14b8a6', lightColor: '#ccfbf1', value: 'Extra Spin!' },
-  { label: 'Surprise Box', icon: '📦', color: '#e11d48', lightColor: '#ffe4e6', value: 'Surprise Box' },
+interface MappedSegment {
+  label: string;
+  type: string;
+  value?: number;
+  color: string;
+  lightColor: string;
+  icon: string;
+  textColor: string;
+}
+
+const SEGMENT_COLORS = [
+  '#f97316', // Orange
+  '#22c55e', // Green
+  '#3b82f6', // Blue
+  '#a855f7', // Purple
+  '#ec4899', // Pink
+  '#f59e0b', // Yellow
+  '#10b981', // Teal
+  '#8a7e72', // Slate/Charcoal
 ];
 
-const SEGMENT_ANGLE = 360 / segments.length; // 45 degrees each
+const getPrizeStyle = (type: string, index: number) => {
+  const styles: Record<string, { color: string; lightColor: string; icon: string }> = {
+    points: { color: '#f59e0b', lightColor: '#fef3c7', icon: '🌟' },
+    coupon: { color: '#22c55e', lightColor: '#dcfce7', icon: '🏷️' },
+    free_shipping: { color: '#0ea5e9', lightColor: '#e0f2fe', icon: '🚚' },
+    gift: { color: '#ec4899', lightColor: '#fce7f3', icon: '🎁' },
+    no_prize: { color: '#8a7e72', lightColor: '#f3f4f6', icon: '🐾' }
+  };
+  return styles[type] || {
+    color: SEGMENT_COLORS[index % SEGMENT_COLORS.length],
+    lightColor: '#f3e8ff',
+    icon: '✨'
+  };
+};
 
 /* ── Floating Particle Component ────────────────────────────── */
 const FloatingParticle = ({ delay, x, size, emoji }: { delay: number; x: number; size: number; emoji: string }) => (
@@ -43,72 +68,192 @@ const PawPrint = ({ style }: { style?: React.CSSProperties }) => (
 );
 
 export default function LuckyPawRewards() {
+  const { user, updateUser } = useAuthStore();
+  const { addToast } = useToastStore();
+
+  const [segments, setSegments] = useState<MappedSegment[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isSpinning, setIsSpinning] = useState(false);
   const [currentRotation, setCurrentRotation] = useState(0);
-  const [wonSegment, setWonSegment] = useState<typeof segments[0] | null>(null);
+  const [wonSegment, setWonSegment] = useState<MappedSegment | null>(null);
   const [showReward, setShowReward] = useState(false);
-  const [spinsLeft, setSpinsLeft] = useState(3);
-  const [totalPoints, setTotalPoints] = useState(2450);
   const [celebrating, setCelebrating] = useState(false);
+
+  // Fallbacks for logged-out users
+  const [guestSpinsLeft, setGuestSpinsLeft] = useState(3);
+  const [guestPoints, setGuestPoints] = useState(2450);
+
   const wheelControls = useAnimation();
+
+  // Load configuration from database
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        setLoading(true);
+        const res = await api.get('/points/config');
+        if (res.data?.success) {
+          const rawSegments = res.data.data || [];
+          const mapped = rawSegments.map((seg: any, idx: number) => {
+            const style = getPrizeStyle(seg.type, idx);
+            return {
+              label: seg.label,
+              type: seg.type,
+              value: seg.value,
+              color: style.color,
+              lightColor: style.lightColor,
+              icon: style.icon,
+              textColor: '#ffffff'
+            };
+          });
+          setSegments(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to load dynamic spin wheel config:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchConfig();
+  }, []);
+
+  const userId = user?._id;
+
+  // Sync latest customer balance if logged in
+  useEffect(() => {
+    if (userId) {
+      api.get('/points/balance').then(res => {
+        if (res.data?.success && res.data.data) {
+          updateUser({
+            pointsBalance: res.data.data.pointsBalance || 0,
+            totalSpins: res.data.data.totalSpins || 0,
+          });
+        }
+      }).catch(() => { });
+    }
+  }, [userId]);
 
   /* ── Idle rotation ────────────────────────────────────────── */
   useEffect(() => {
-    if (!isSpinning && !showReward) {
+    if (segments.length > 0 && !isSpinning && !showReward) {
       wheelControls.start({
         rotate: [currentRotation, currentRotation + 360],
         transition: { duration: 40, repeat: Infinity, ease: 'linear' },
       });
     }
-  }, [isSpinning, showReward, currentRotation]);
+  }, [segments, isSpinning, showReward, currentRotation]);
+
+  const spinsLeft = user ? user.totalSpins : guestSpinsLeft;
+  const pointsBalance = user ? user.pointsBalance : guestPoints;
 
   /* ── Spin Logic ───────────────────────────────────────────── */
-  const handleSpin = useCallback(() => {
-    if (isSpinning || spinsLeft <= 0) return;
+  const handleSpin = useCallback(async () => {
+    if (isSpinning || spinsLeft <= 0 || segments.length === 0) return;
 
     setIsSpinning(true);
     setShowReward(false);
     setWonSegment(null);
     setCelebrating(false);
 
-    const winIndex = Math.floor(Math.random() * segments.length);
-    const extraRotations = 5 + Math.floor(Math.random() * 3); // 5-7 full rotations
-    const targetAngle = extraRotations * 360 + (360 - winIndex * SEGMENT_ANGLE - SEGMENT_ANGLE / 2);
-    const finalRotation = currentRotation + targetAngle;
+    if (user) {
+      // ── LOGGED IN: Real Spin via DB ──
+      try {
+        const response = await api.post('/points/spin');
+        if (response.data?.success) {
+          const { prizeType, pointsAwarded, description } = response.data.data;
 
-    wheelControls.start({
-      rotate: finalRotation,
-      transition: {
-        duration: 4.5,
-        ease: [0.2, 0.8, 0.3, 1],
-      },
-    }).then(() => {
-      setCurrentRotation(finalRotation % 360);
-      setIsSpinning(false);
-      setWonSegment(segments[winIndex]);
-      setSpinsLeft((prev) => prev - 1);
-      if (segments[winIndex].label === 'Bonus Points') {
-        setTotalPoints((prev) => prev + 100);
+          const targetIndex = segments.findIndex(seg => seg.label === description);
+          const winIndex = targetIndex >= 0 ? targetIndex : 0;
+
+          const SEGMENT_ANGLE = 360 / segments.length;
+          const extraRotations = 6 + Math.floor(Math.random() * 3);
+          const targetAngle = extraRotations * 360 + (360 - winIndex * SEGMENT_ANGLE - SEGMENT_ANGLE / 2);
+          const finalRotation = currentRotation + targetAngle;
+
+          wheelControls.start({
+            rotate: finalRotation,
+            transition: { duration: 4.8, ease: [0.15, 0.85, 0.25, 1] },
+          }).then(() => {
+            setCurrentRotation(finalRotation % 360);
+            setIsSpinning(false);
+            const won = segments[winIndex];
+            setWonSegment(won);
+
+            if (prizeType !== 'no_prize') {
+              addToast(`Congratulations! You won ${description}! 🐾`, 'success');
+            } else {
+              addToast('Better luck next time! 🐾', 'info');
+            }
+
+            setTimeout(() => {
+              setShowReward(true);
+              setCelebrating(true);
+              setTimeout(() => setCelebrating(false), 3000);
+            }, 400);
+
+            updateUser({
+              pointsBalance: user.pointsBalance + pointsAwarded,
+              totalSpins: Math.max(0, user.totalSpins - 1),
+            });
+          });
+        } else {
+          addToast(response.data?.message || 'Failed to spin', 'error');
+          setIsSpinning(false);
+        }
+      } catch (err: any) {
+        console.error(err);
+        addToast(err.response?.data?.message || 'Error occurred while spinning', 'error');
+        setIsSpinning(false);
       }
+    } else {
+      // ── GUEST MODE: Mock Spin ──
+      const winIndex = Math.floor(Math.random() * segments.length);
+      const SEGMENT_ANGLE = 360 / segments.length;
+      const extraRotations = 5 + Math.floor(Math.random() * 3);
+      const targetAngle = extraRotations * 360 + (360 - winIndex * SEGMENT_ANGLE - SEGMENT_ANGLE / 2);
+      const finalRotation = currentRotation + targetAngle;
 
-      // Show reward card after a beat
-      setTimeout(() => {
-        setShowReward(true);
-        setCelebrating(true);
-        setTimeout(() => setCelebrating(false), 3000);
-      }, 400);
-    });
-  }, [isSpinning, spinsLeft, currentRotation, wheelControls]);
+      wheelControls.start({
+        rotate: finalRotation,
+        transition: { duration: 4.5, ease: [0.2, 0.8, 0.3, 1] },
+      }).then(() => {
+        setCurrentRotation(finalRotation % 360);
+        setIsSpinning(false);
+        const won = segments[winIndex];
+        setWonSegment(won);
+        setGuestSpinsLeft(prev => Math.max(0, prev - 1));
+
+        if (won.type === 'points' && won.value) {
+          setGuestPoints(prev => prev + won.value!);
+        }
+
+        setTimeout(() => {
+          setShowReward(true);
+          setCelebrating(true);
+          setTimeout(() => setCelebrating(false), 3000);
+        }, 400);
+      });
+    }
+  }, [isSpinning, spinsLeft, currentRotation, wheelControls, user, segments]);
 
   const progressToNextSpin = 72; // percentage
+
+  if (loading || segments.length === 0) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }}>
+        <div className="spinner" style={{ borderColor: '#f97316', borderTopColor: 'transparent' }} />
+      </div>
+    );
+  }
+
+  const SEGMENT_ANGLE = 360 / segments.length;
 
   return (
     <div style={{ width: '100%', position: 'relative', overflow: 'hidden' }}>
       {/* ── Background Decorations ──────────────────────────── */}
       <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
         {/* Floating particles */}
-        {['🪙', '🐾', '⭐', '🎁', '💰', '✨', '🐾', '🪙'].map((emoji, i) => (
-          <FloatingParticle key={i} delay={i * 1.2} x={10 + i * 12} size={0.8 + Math.random() * 0.6} emoji={emoji} />
+        {['🐾', '⭐', '✨', '🐾', '✨'].map((emoji, i) => (
+          <FloatingParticle key={i} delay={i * 1.2} x={10 + i * 20} size={0.8 + Math.random() * 0.6} emoji={emoji} />
         ))}
 
         {/* Soft background glows */}
@@ -136,9 +281,9 @@ export default function LuckyPawRewards() {
         padding: '3rem 0',
       }}>
 
-        {/* ── LEFT SIDE: Spin Wheel ──────────────────────────── */}
+        {/* ── LEFT SIDE: Spin Wheel (Dynamic SVG) ──────────────────────────── */}
         <div style={{ position: 'relative', width: 380, height: 380, flexShrink: 0 }}>
-          {/* Outer glow ring */}
+          {/* Outer conic glow ring */}
           <motion.div
             animate={celebrating ? { scale: [1, 1.08, 1], opacity: [0.3, 0.6, 0.3] } : { scale: 1, opacity: 0.2 }}
             transition={celebrating ? { duration: 0.6, repeat: Infinity } : {}}
@@ -178,6 +323,9 @@ export default function LuckyPawRewards() {
                     <stop offset="100%" stopColor={seg.color} stopOpacity="0.3" />
                   </linearGradient>
                 ))}
+                <filter id="centerShadow" x="-50%" y="-50%" width="200%" height="200%">
+                  <feDropShadow dx="0" dy="2" stdDeviation="6" floodColor="rgba(0,0,0,0.08)" />
+                </filter>
               </defs>
 
               {/* Wheel segments */}
@@ -191,12 +339,9 @@ export default function LuckyPawRewards() {
                 const largeArc = SEGMENT_ANGLE > 180 ? 1 : 0;
 
                 const midAngle = ((i + 0.5) * SEGMENT_ANGLE - 90) * (Math.PI / 180);
-                const labelR = 130;
-                const iconR = 100;
+                const labelR = 115; // Centered without icons
                 const lx = 200 + labelR * Math.cos(midAngle);
                 const ly = 200 + labelR * Math.sin(midAngle);
-                const ix = 200 + iconR * Math.cos(midAngle);
-                const iy = 200 + iconR * Math.sin(midAngle);
                 const textRotation = i * SEGMENT_ANGLE;
 
                 return (
@@ -207,12 +352,8 @@ export default function LuckyPawRewards() {
                       stroke="rgba(255,255,255,0.7)"
                       strokeWidth="2"
                     />
-                    {/* Icon */}
-                    <text x={ix} y={iy} textAnchor="middle" dominantBaseline="central" fontSize="22" transform={`rotate(${textRotation}, ${ix}, ${iy})`}>
-                      {seg.icon}
-                    </text>
-                    {/* Label */}
-                    <text x={lx} y={ly} textAnchor="middle" dominantBaseline="central" fontSize="9" fontWeight="800" fill={seg.color} transform={`rotate(${textRotation}, ${lx}, ${ly})`} style={{ letterSpacing: '0.03em' }}>
+                    {/* Centered Label text — No Icons */}
+                    <text x={lx} y={ly} textAnchor="middle" dominantBaseline="central" fontSize="11" fontWeight="900" fill={seg.color} transform={`rotate(${textRotation}, ${lx}, ${ly})`} style={{ letterSpacing: '0.02em' }}>
                       {seg.label}
                     </text>
                   </g>
@@ -221,11 +362,6 @@ export default function LuckyPawRewards() {
 
               {/* Center circle */}
               <circle cx="200" cy="200" r="40" fill="#fff" stroke="rgba(249,115,22,0.2)" strokeWidth="3" filter="url(#centerShadow)" />
-              <defs>
-                <filter id="centerShadow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feDropShadow dx="0" dy="2" stdDeviation="6" floodColor="rgba(0,0,0,0.08)" />
-                </filter>
-              </defs>
 
               {/* Center paw */}
               <g transform="translate(188, 186) scale(1)">
@@ -281,7 +417,7 @@ export default function LuckyPawRewards() {
               Lucky Paw Rewards
             </h2>
             <p style={{ fontSize: '0.95rem', color: '#8a7e72', lineHeight: 1.6, marginTop: '0.5rem' }}>
-              Earn points through every purchase and unlock exciting rewards, exclusive discounts, free gifts, and bonus surprises.
+              Earn spins by placing orders and win points, discounts, and custom rewards instantly!
             </p>
           </div>
 
@@ -297,7 +433,7 @@ export default function LuckyPawRewards() {
                 Your Points
               </span>
               <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#2d2418', fontFamily: 'var(--font-display)', marginTop: '0.25rem' }}>
-                {totalPoints.toLocaleString()}
+                {pointsBalance.toLocaleString()}
               </div>
               <span style={{ fontSize: '0.72rem', color: '#8a7e72' }}>🪙 PawCoins</span>
             </div>
@@ -342,21 +478,6 @@ export default function LuckyPawRewards() {
               <span style={{ fontSize: '0.68rem', color: '#8a7e72' }}>🐾 280 more points needed</span>
               <span style={{ fontSize: '0.68rem', color: '#8a7e72' }}>1,000 pts</span>
             </div>
-          </div>
-
-          {/* Reward Examples */}
-          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-            {segments.slice(0, 4).map((seg, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: '0.4rem',
-                padding: '0.4rem 0.8rem', borderRadius: 12,
-                background: seg.lightColor, border: `1px solid ${seg.color}22`,
-                fontSize: '0.72rem', fontWeight: 700, color: seg.color,
-              }}>
-                <span>{seg.icon}</span>
-                {seg.label}
-              </div>
-            ))}
           </div>
 
           {/* Spin Button */}
@@ -456,7 +577,6 @@ export default function LuckyPawRewards() {
                 overflow: 'hidden',
               }}
             >
-              {/* Background glow */}
               <div style={{
                 position: 'absolute', inset: 0,
                 background: `radial-gradient(circle at 50% 30%, ${wonSegment.lightColor} 0%, transparent 70%)`,
@@ -464,7 +584,6 @@ export default function LuckyPawRewards() {
               }} />
 
               <div style={{ position: 'relative', zIndex: 1 }}>
-                {/* Icon */}
                 <motion.div
                   animate={{ y: [0, -8, 0] }}
                   transition={{ duration: 2, repeat: Infinity }}
@@ -473,26 +592,22 @@ export default function LuckyPawRewards() {
                   {wonSegment.icon}
                 </motion.div>
 
-                {/* Congrats */}
                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: wonSegment.color, textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                   🎉 Congratulations!
                 </span>
 
-                {/* Value */}
                 <h3 style={{
                   fontSize: '2.2rem', fontWeight: 900, color: '#2d2418',
                   fontFamily: 'var(--font-display)', margin: '0.5rem 0 0.25rem',
                   letterSpacing: '-0.02em',
                 }}>
-                  {wonSegment.value}
+                  {wonSegment.label}
                 </h3>
 
-                {/* Label */}
                 <p style={{ fontSize: '0.9rem', color: '#8a7e72', marginBottom: '1.5rem' }}>
-                  {wonSegment.label} has been added to your account!
+                  {user ? 'Added to your account!' : 'Create an account or log in to claim this reward!'}
                 </p>
 
-                {/* Action */}
                 <button
                   onClick={() => setShowReward(false)}
                   style={{

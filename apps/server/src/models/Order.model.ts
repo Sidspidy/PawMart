@@ -1,5 +1,12 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
+// ── Counter for sequential order numbers ──────────────────────────────────────
+const CounterSchema = new Schema({
+  _id: { type: String, required: true },
+  seq: { type: Number, default: 0 },
+});
+const Counter = mongoose.models['Counter'] || mongoose.model('Counter', CounterSchema);
+
 // ── Enums ─────────────────────────────────────────────────────────────────────
 export enum OrderStatus {
   PENDING = 'pending',
@@ -119,7 +126,7 @@ const StatusHistorySchema = new Schema<IStatusHistory>(
     status: { type: String, enum: Object.values(OrderStatus), required: true },
     note: { type: String },
     timestamp: { type: Date, default: () => new Date() },
-    updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    updatedBy: { type: Schema.Types.ObjectId, ref: 'Admin' },
   },
   { _id: false }
 );
@@ -127,7 +134,7 @@ const StatusHistorySchema = new Schema<IStatusHistory>(
 const OrderSchema = new Schema<IOrder>(
   {
     orderNumber: { type: String, required: true, unique: true },
-    user: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    user: { type: Schema.Types.ObjectId, ref: 'Customer', required: true, index: true },
     items: { type: [OrderItemSchema], required: true },
     shippingAddress: { type: ShippingAddressSchema, required: true },
     status: {
@@ -171,12 +178,16 @@ OrderSchema.index({ status: 1 });
 OrderSchema.index({ paymentStatus: 1 });
 OrderSchema.index({ createdAt: -1 });
 
-// ── Auto-generate order number ────────────────────────────────────────────────
-OrderSchema.pre('save', async function (next) {
+// ── Sequential PAW-XXXX order number ─────────────────────────────────────────
+OrderSchema.pre('validate', async function (next) {
   if (this.isNew && !this.orderNumber) {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-    this.orderNumber = `PM-${timestamp}-${random}`;
+    const counter = await Counter.findByIdAndUpdate(
+      'orderNumber',
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true }
+    );
+    const paddedNum = String(counter.seq).padStart(4, '0');
+    this.orderNumber = `PAW-${paddedNum}`;
   }
   next();
 });

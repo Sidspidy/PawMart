@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
-import { User, IUser, UserRole, AuthProvider } from '../models/User.model';
+import { Customer, ICustomer } from '../models/Customer.model';
+import { Admin, IAdmin } from '../models/Admin.model';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/AppError';
 
 export interface TokenPair {
@@ -20,36 +21,117 @@ export const signTokenPair = (userId: string, role: string): TokenPair => ({
   refreshToken: signRefreshToken(userId),
 });
 
-// ── Auth flows ────────────────────────────────────────────────────────────────
+// ── Customer Auth flows ───────────────────────────────────────────────────────
 
 /**
- * Find-or-create user by email after OTP verification.
- * New users are created with CUSTOMER role and email verified.
+ * Standard password-based login for storefront customers.
  */
-export const loginOrRegisterByEmail = async (
-  email: string
-): Promise<{ user: IUser; tokens: TokenPair; isNew: boolean }> => {
-  let isNew = false;
-  let user = await User.findOne({ email: email.toLowerCase() });
+export const loginCustomer = async (
+  email: string,
+  password: string
+): Promise<{ customer: ICustomer; tokens: TokenPair }> => {
+  const customer = await Customer.findOne({ email: email.toLowerCase() });
+  if (!customer) {
+    throw new UnauthorizedError('Invalid email or password');
+  }
+  if (!customer.isActive) {
+    throw new UnauthorizedError('Account is deactivated');
+  }
+  const isMatch = await customer.comparePassword(password);
+  if (!isMatch) {
+    throw new UnauthorizedError('Invalid email or password');
+  }
+  
+  customer.lastLoginAt = new Date();
+  await customer.save();
 
-  if (!user) {
-    user = await User.create({
-      email: email.toLowerCase(),
-      name: email.split('@')[0], // placeholder name
-      role: UserRole.CUSTOMER,
-      provider: AuthProvider.EMAIL,
-      isEmailVerified: true,
-    });
-    isNew = true;
-  } else {
-    user.isEmailVerified = true;
-    user.lastLoginAt = new Date();
-    await user.save();
+  const tokens = signTokenPair(customer._id.toString(), 'customer');
+  return { customer, tokens };
+};
+
+/**
+ * Creates and registers a new storefront Customer after OTP verification.
+ */
+export const registerCustomer = async (
+  email: string,
+  name: string,
+  phone: string,
+  password: string
+): Promise<{ customer: ICustomer; tokens: TokenPair }> => {
+  const existing = await Customer.findOne({ email: email.toLowerCase() });
+  if (existing) {
+    throw new ConflictError('Email already registered');
   }
 
-  const tokens = signTokenPair(user._id.toString(), user.role);
-  return { user, tokens, isNew };
+  const customer = await Customer.create({
+    email: email.toLowerCase(),
+    name,
+    phone,
+    password,
+  });
+
+  const tokens = signTokenPair(customer._id.toString(), 'customer');
+  return { customer, tokens };
 };
+
+/**
+ * Resets a customer's password in the database.
+ */
+export const resetCustomerPassword = async (
+  email: string,
+  password: string
+): Promise<void> => {
+  const customer = await Customer.findOne({ email: email.toLowerCase() });
+  if (!customer) {
+    throw new NotFoundError('Customer account not found');
+  }
+  customer.password = password;
+  await customer.save();
+};
+
+// ── Admin Auth flows ──────────────────────────────────────────────────────────
+
+/**
+ * Find admin user by email after OTP verification.
+ */
+export const adminLoginByEmail = async (
+  email: string
+): Promise<{ user: IAdmin; tokens: TokenPair }> => {
+  const admin = await Admin.findOne({ email: email.toLowerCase() });
+  if (!admin) {
+    throw new UnauthorizedError('Authorized administrative staff only. Account not found.');
+  }
+  if (!admin.isActive) {
+    throw new UnauthorizedError('Account is deactivated');
+  }
+
+  admin.lastLoginAt = new Date();
+  await admin.save();
+
+  const tokens = signTokenPair(admin._id.toString(), admin.role);
+  return { user: admin, tokens };
+};
+
+/**
+ * Super Admin: create a staff/manager account directly.
+ */
+export const createAdminUser = async (
+  email: string,
+  name: string,
+  role: any
+): Promise<IAdmin> => {
+  const existing = await Admin.findOne({ email: email.toLowerCase() });
+  if (existing) throw new ConflictError('Email already registered as admin');
+
+  return Admin.create({
+    email: email.toLowerCase(),
+    name,
+    role,
+    isActive: true,
+  });
+};
+
+// ── Token Refresh flow ────────────────────────────────────────────────────────
 
 /**
  * Refresh access token using a valid refresh token.
@@ -62,28 +144,17 @@ export const refreshAccessToken = async (refreshToken: string): Promise<string> 
     throw new UnauthorizedError('Invalid or expired refresh token');
   }
 
-  const user = await User.findById(payload.userId).select('role isActive');
+  let user: any = await Customer.findById(payload.userId).select('isActive');
+  let role = 'customer';
+
+  if (!user) {
+    user = await Admin.findById(payload.userId).select('role isActive');
+    if (user) {
+      role = (user as IAdmin).role;
+    }
+  }
+
   if (!user || !user.isActive) throw new NotFoundError('User not found');
 
-  return signAccessToken(user._id.toString(), user.role);
-};
-
-/**
- * Admin: create a staff/manager account directly (no OTP).
- */
-export const createAdminUser = async (
-  email: string,
-  name: string,
-  role: UserRole
-): Promise<IUser> => {
-  const existing = await User.findOne({ email: email.toLowerCase() });
-  if (existing) throw new ConflictError('Email already registered');
-
-  return User.create({
-    email: email.toLowerCase(),
-    name,
-    role,
-    provider: AuthProvider.EMAIL,
-    isEmailVerified: true,
-  });
+  return signAccessToken(user._id.toString(), role);
 };

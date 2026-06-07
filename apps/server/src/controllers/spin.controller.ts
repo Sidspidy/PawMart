@@ -12,7 +12,8 @@ export const spin = asyncHandler(async (req: Request, res: Response) => {
 
 // GET /api/points/spin/config  (public — for rendering the wheel)
 export const getSpinConfig = asyncHandler(async (_req: Request, res: Response) => {
-  sendSuccess(res, getWheelConfig(), 'Wheel config fetched');
+  const config = await getWheelConfig();
+  sendSuccess(res, config, 'Wheel config fetched');
 });
 
 // GET /api/points/spin/history

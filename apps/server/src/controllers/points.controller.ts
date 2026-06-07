@@ -3,11 +3,11 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
 import { buildPagination } from '../utils/apiResponse';
 import { Points } from '../models/Points.model';
-import { User } from '../models/User.model';
+import { Customer } from '../models/Customer.model';
 
 // GET /api/points/balance
 export const getBalance = asyncHandler(async (req: Request, res: Response) => {
-  const user = await User.findById(req.user!._id).select('pointsBalance totalSpins');
+  const user = await Customer.findById(req.user!._id).select('pointsBalance totalSpins');
   sendSuccess(res, user, 'Points balance fetched');
 });
 

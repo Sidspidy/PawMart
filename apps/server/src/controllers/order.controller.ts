@@ -34,13 +34,43 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
 
     // Deduct stock
     for (const item of data.items) {
-      const updated = await Product.findByIdAndUpdate(
-        item.product,
-        { $inc: { stock: -item.quantity } },
-        { new: true, session }
-      );
-      if (!updated || updated.stock < 0) {
-        throw new BadRequestError(`Insufficient stock for product ${item.product}`);
+      const product = await Product.findById(item.product).session(session);
+      if (!product) {
+        throw new NotFoundError(`Product not found: ${item.product}`);
+      }
+
+      let updated;
+      if (product.variants && product.variants.length > 0) {
+        const variant = product.variants.find((v) => v.sku === item.sku);
+        if (!variant) {
+          throw new BadRequestError(`Variant SKU ${item.sku} not found for product ${product.name}`);
+        }
+        if (variant.stock < item.quantity) {
+          throw new BadRequestError(`Insufficient stock for variant "${variant.label}" of ${product.name}`);
+        }
+        updated = await Product.findOneAndUpdate(
+          { _id: item.product, 'variants.sku': item.sku },
+          {
+            $inc: {
+              'variants.$.stock': -item.quantity,
+              stock: -item.quantity,
+            },
+          },
+          { new: true, session }
+        );
+      } else {
+        if (product.stock < item.quantity) {
+          throw new BadRequestError(`Insufficient stock for product ${product.name}`);
+        }
+        updated = await Product.findByIdAndUpdate(
+          item.product,
+          { $inc: { stock: -item.quantity } },
+          { new: true, session }
+        );
+      }
+
+      if (!updated) {
+        throw new BadRequestError(`Failed to update stock for product ${item.product}`);
       }
     }
 
@@ -76,6 +106,10 @@ export const createOrder = asyncHandler(async (req: Request, res: Response) => {
     await Cart.findOneAndUpdate({ user: userId }, { items: [], subtotal: 0 }, { session });
 
     await session.commitTransaction();
+
+    if (data.paymentMethod === 'cod') {
+      await PointsService.rewardOrderPoints(userId, order._id as any, order.total);
+    }
 
     // Fire-and-forget emails / point credits
     EmailService.sendOrderConfirmationEmail(req.user!.email, order.orderNumber, order.total).catch(console.error);

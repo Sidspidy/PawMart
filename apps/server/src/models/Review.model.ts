@@ -18,7 +18,7 @@ export interface IReview extends Document {
 const ReviewSchema = new Schema<IReview>(
   {
     product: { type: Schema.Types.ObjectId, ref: 'Product', required: true, index: true },
-    user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    user: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
     order: { type: Schema.Types.ObjectId, ref: 'Order', required: true },
     rating: { type: Number, required: true, min: 1, max: 5 },
     title: { type: String, trim: true },

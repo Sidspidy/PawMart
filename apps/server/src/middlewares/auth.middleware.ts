@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
-import { User } from '../models/User.model';
+import { Customer } from '../models/Customer.model';
+import { Admin } from '../models/Admin.model';
 import { UnauthorizedError } from '../utils/AppError';
 import { asyncHandler } from '../utils/asyncHandler';
 
@@ -13,7 +14,7 @@ interface JwtPayload {
 }
 
 /**
- * Verifies Bearer JWT and attaches the full user document to req.user.
+ * Verifies Bearer JWT and attaches the full user document (Customer or Admin) to req.user.
  * Throws 401 for missing/invalid/expired tokens.
  */
 export const authenticate = asyncHandler(
@@ -33,7 +34,13 @@ export const authenticate = asyncHandler(
       throw new UnauthorizedError('Invalid or expired token');
     }
 
-    const user = await User.findById(payload.userId).select('-__v');
+    let user;
+    if (payload.role === 'customer') {
+      user = await Customer.findById(payload.userId).select('-password -__v');
+    } else {
+      user = await Admin.findById(payload.userId).select('-__v');
+    }
+
     if (!user || !user.isActive) {
       throw new UnauthorizedError('User not found or deactivated');
     }
@@ -54,8 +61,17 @@ export const optionalAuth = asyncHandler(
     try {
       const token = authHeader.split(' ')[1];
       const payload = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
-      const user = await User.findById(payload.userId);
-      if (user?.isActive) req.user = user;
+      
+      let user;
+      if (payload.role === 'customer') {
+        user = await Customer.findById(payload.userId);
+      } else {
+        user = await Admin.findById(payload.userId);
+      }
+
+      if (user?.isActive) {
+        req.user = user;
+      }
     } catch {
       // silently ignore
     }

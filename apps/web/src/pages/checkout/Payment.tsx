@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CreditCard, Smartphone, Building, Check, Lock, ShieldCheck,
-  Package, ArrowLeft, ArrowRight, ChevronDown, Wallet, Zap
+  Package, ArrowLeft, ArrowRight, ChevronDown, Wallet, Zap, MapPin
 } from 'lucide-react';
 import { useCartStore } from '../../store/cart.store';
+import { useToastStore } from '../../store/toast.store';
+import { api } from '../../api';
 
 const STEP_LABELS = ['Cart', 'Address', 'Payment', 'Confirm'];
 
-type PaymentMethod = 'upi' | 'card' | 'netbanking' | 'cod' | 'wallet';
+type PaymentMethod = 'stripe' | 'razorpay' | 'cashfree' | 'cod';
 
 const UPI_APPS = [
   { id: 'gpay', label: 'Google Pay', color: '#4285F4' },
@@ -31,7 +33,25 @@ const WALLETS = [
 export default function Payment() {
   const navigate = useNavigate();
   const { items, subtotal, clearCart } = useCartStore();
-  const [method, setMethod] = useState<PaymentMethod>('upi');
+  const { addToast } = useToastStore();
+
+  // Load address from sessionStorage
+  const addressString = sessionStorage.getItem('checkout_address');
+  const address = addressString ? (() => {
+    try {
+      return JSON.parse(addressString);
+    } catch {
+      return null;
+    }
+  })() : null;
+
+  useEffect(() => {
+    if (!addressString) {
+      addToast('Please select a shipping address first! 🐾', 'warning');
+      navigate('/checkout/address');
+    }
+  }, [addressString, navigate, addToast]);
+  const [method, setMethod] = useState<PaymentMethod>('stripe');
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
   const [upiId, setUpiId] = useState('');
   const [selectedBank, setSelectedBank] = useState('');
@@ -43,8 +63,30 @@ export default function Payment() {
   const [processing, setProcessing] = useState(false);
 
   const sub = subtotal();
-  const deliveryFee = sub >= 999 ? 0 : 49;
-  const total = sub + deliveryFee;
+  
+  // Parse coupon from sessionStorage
+  const couponString = sessionStorage.getItem('checkout_coupon');
+  const coupon = couponString ? (() => {
+    try {
+      return JSON.parse(couponString);
+    } catch {
+      return null;
+    }
+  })() : null;
+
+  let couponDiscount = 0;
+  let deliveryFee = sub >= 999 ? 0 : 49;
+  if (coupon) {
+    if (coupon.type === 'percentage') {
+      couponDiscount = Math.round((sub * coupon.value) / 100);
+    } else if (coupon.type === 'flat') {
+      couponDiscount = Math.min(coupon.value, sub);
+    } else if (coupon.type === 'free_shipping') {
+      deliveryFee = 0;
+    }
+  }
+
+  const total = Math.max(0, sub - couponDiscount + deliveryFee);
 
   const formatCardNum = (val: string) => {
     const digits = val.replace(/\D/g, '').slice(0, 16);
@@ -57,12 +99,248 @@ export default function Payment() {
     return digits;
   };
 
-  const handlePay = () => {
+  const loadScript = (src: string) => {
+    return new Promise((resolve) => {
+      const existing = document.querySelector(`script[src="${src}"]`);
+      if (existing) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handlePay = async () => {
+    if (method === 'stripe') {
+      if (!cardNum.trim() || !cardExpiry.trim() || !cardCvv.trim()) {
+        addToast('Please enter all card details to proceed! 🐾', 'warning');
+        return;
+      }
+    }
+
     setProcessing(true);
-    setTimeout(() => {
-      clearCart();
-      navigate('/checkout/confirmation');
-    }, 2000);
+    try {
+      // 1. Load checkout address from sessionStorage
+      const addressString = sessionStorage.getItem('checkout_address');
+      if (!addressString) {
+        addToast('Delivery address is missing. Please choose address again! 🐾', 'error');
+        navigate('/checkout/address');
+        return;
+      }
+      const rawAddress = JSON.parse(addressString);
+
+      // Map rawAddress to what schema expects
+      const shippingAddress = {
+        fullName: rawAddress.fullName,
+        phone: rawAddress.phone,
+        line1: rawAddress.addressLine1,
+        line2: rawAddress.addressLine2 || '',
+        city: rawAddress.city,
+        state: rawAddress.state,
+        pincode: rawAddress.pincode,
+        country: 'India',
+      };
+
+      // 2. Load coupon code from sessionStorage if any
+      const couponString = sessionStorage.getItem('checkout_coupon');
+      let couponCode = undefined;
+      if (couponString) {
+        try {
+          const parsed = JSON.parse(couponString);
+          couponCode = parsed?.code || undefined;
+        } catch {
+          couponCode = couponString || undefined;
+        }
+      }
+
+      // 3. Build items array for API
+      const apiItems = items.map(item => ({
+        product: item.product,
+        variant: item.variant || item.size || undefined,
+        sku: item.sku,
+        quantity: item.quantity,
+        price: item.price,
+      }));
+
+      // 4. Send POST /api/orders
+      const response = await api.post('/orders', {
+        items: apiItems,
+        shippingAddress,
+        paymentMethod: method,
+        couponCode,
+        pointsToRedeem: 0,
+      });
+
+      if (!response.data?.success) {
+        addToast(response.data?.message || 'Failed to create order', 'error');
+        setProcessing(false);
+        return;
+      }
+
+      const createdOrder = response.data.data;
+
+      // 5. Cash on Delivery (COD) flow
+      if (method === 'cod') {
+        addToast('Order placed successfully! 🐾', 'success');
+        clearCart();
+        navigate('/checkout/confirmation', {
+          state: { order: createdOrder, shippingAddress }
+        });
+        return;
+      }
+
+      // 6. Online Payment Gateways initiation
+      const initRes = await api.post('/payment/initiate', {
+        orderId: createdOrder._id,
+        gateway: method,
+      });
+
+      if (!initRes.data?.success) {
+        addToast('Failed to initiate payment gateway session', 'error');
+        setProcessing(false);
+        return;
+      }
+
+      const paymentData = initRes.data.data;
+
+      // 7. Gateway-specific SDK flows
+      if (method === 'razorpay') {
+        const loaded = await loadScript('https://checkout.razorpay.com/v1/checkout.js');
+        if (!loaded) {
+          addToast('Failed to load Razorpay Checkout SDK', 'error');
+          setProcessing(false);
+          return;
+        }
+
+        const options = {
+          key: paymentData.keyId,
+          amount: paymentData.amount * 100,
+          currency: paymentData.currency,
+          name: 'PawMart',
+          description: `Order #${createdOrder.orderNumber}`,
+          order_id: paymentData.orderId,
+          handler: async function (rzpResponse: any) {
+            try {
+              setProcessing(true);
+              const verifyRes = await api.post('/payment/verify', {
+                orderId: createdOrder._id,
+                gateway: 'razorpay',
+                razorpayOrderId: rzpResponse.razorpay_order_id,
+                razorpayPaymentId: rzpResponse.razorpay_payment_id,
+                razorpaySignature: rzpResponse.razorpay_signature,
+              });
+
+              if (verifyRes.data?.success) {
+                addToast('Payment verified successfully! 🐾', 'success');
+                clearCart();
+                navigate('/checkout/confirmation', {
+                  state: { order: createdOrder, shippingAddress }
+                });
+              } else {
+                addToast('Payment verification failed on server', 'error');
+              }
+            } catch (err: any) {
+              console.error(err);
+              addToast(err.response?.data?.message || 'Verification failed', 'error');
+            } finally {
+              setProcessing(false);
+            }
+          },
+          prefill: {
+            name: shippingAddress.fullName,
+            contact: shippingAddress.phone,
+          },
+          theme: {
+            color: '#f97316',
+          },
+          modal: {
+            ondismiss: function () {
+              setProcessing(false);
+            }
+          }
+        };
+
+        const rzp = new (window as any).Razorpay(options);
+        rzp.open();
+
+      } else if (method === 'stripe') {
+        const loaded = await loadScript('https://js.stripe.com/v3/');
+        if (!loaded) {
+          addToast('Failed to load Stripe Checkout SDK', 'error');
+          setProcessing(false);
+          return;
+        }
+
+        const stripe = (window as any).Stripe(paymentData.keyId);
+        const confirmResult = await stripe.confirmCardPayment(paymentData.clientSecret, {
+          payment_method: {
+            card: {
+              number: cardNum.replace(/\s/g, ''),
+              exp_month: cardExpiry.split('/')[0],
+              exp_year: '20' + cardExpiry.split('/')[1],
+              cvc: cardCvv,
+              billing_details: {
+                name: cardName || shippingAddress.fullName,
+                phone: shippingAddress.phone,
+              }
+            }
+          }
+        });
+
+        if (confirmResult.error) {
+          addToast(confirmResult.error.message || 'Stripe card payment failed', 'error');
+          setProcessing(false);
+          return;
+        }
+
+        if (confirmResult.paymentIntent && confirmResult.paymentIntent.status === 'succeeded') {
+          const verifyRes = await api.post('/payment/verify', {
+            orderId: createdOrder._id,
+            gateway: 'stripe',
+            stripePaymentIntentId: confirmResult.paymentIntent.id,
+          });
+
+          if (verifyRes.data?.success) {
+            addToast('Payment captured successfully! 🐾', 'success');
+            clearCart();
+            navigate('/checkout/confirmation', {
+              state: { order: createdOrder, shippingAddress }
+            });
+          } else {
+            addToast('Server verification failed for Stripe payment', 'error');
+          }
+        }
+
+      } else if (method === 'cashfree') {
+        const loaded = await loadScript('https://sdk.cashfree.com/js/v3/cashfree.js');
+        if (!loaded) {
+          addToast('Failed to load Cashfree Checkout SDK', 'error');
+          setProcessing(false);
+          return;
+        }
+
+        const cashfree = (window as any).Cashfree({
+          mode: 'sandbox',
+        });
+
+        cashfree.checkout({
+          paymentSessionId: paymentData.clientSecret,
+          returnUrl: `${window.location.origin}/checkout/confirmation?order_id=${createdOrder._id}`,
+        });
+      }
+
+    } catch (err: any) {
+      console.error('Order/Payment error:', err);
+      addToast(err.response?.data?.message || 'Error processing your checkout', 'error');
+    } finally {
+      if (method !== 'cashfree') {
+        setProcessing(false);
+      }
+    }
   };
 
   // ── Styles ──────────────────────────────────────────
@@ -391,10 +669,9 @@ export default function Payment() {
   );
 
   const methodTabs: { id: PaymentMethod; label: string; icon: React.ReactNode; badge?: string }[] = [
-    { id: 'upi', label: 'UPI / QR Code', icon: <Smartphone size={18} />, badge: 'Recommended' },
-    { id: 'card', label: 'Credit / Debit Card', icon: <CreditCard size={18} /> },
-    { id: 'netbanking', label: 'Net Banking', icon: <Building size={18} /> },
-    { id: 'wallet', label: 'Wallets', icon: <Wallet size={18} /> },
+    { id: 'razorpay', label: 'Razorpay', icon: <Smartphone size={18} />, badge: 'Popular' },
+    { id: 'cashfree', label: 'Cashfree', icon: <Building size={18} /> },
+    { id: 'stripe', label: 'Stripe Card', icon: <CreditCard size={18} /> },
     { id: 'cod', label: 'Cash on Delivery', icon: <Package size={18} /> },
   ];
 
@@ -411,232 +688,175 @@ export default function Payment() {
         <div style={s.layout}>
           {/* Payment panel */}
           <div style={s.paymentCard}>
-            {/* Header */}
-            <div style={s.paymentCardHeader}>
-              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Lock size={18} color="#fff" />
-              </div>
-              <div>
-                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#2d2418', fontFamily: "'Nunito', sans-serif" }}>Secure Payment</div>
-                <div style={{ fontSize: '0.75rem', color: '#8a7e72' }}>All transactions are 256-bit SSL encrypted</div>
-              </div>
-              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.375rem 0.75rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '99px' }}>
-                <ShieldCheck size={13} color="#16a34a" />
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#16a34a' }}>SSL Secured</span>
-              </div>
-            </div>
-
-            {/* Method tabs + content */}
-            <div style={{ display: 'flex', minHeight: '420px' }}>
-              {/* Left: Method list */}
-              <div style={{ width: '220px', borderRight: '1px solid #f0ebe4', flexShrink: 0 }}>
-                {methodTabs.map(tab => (
-                  <div key={tab.id} style={s.methodTab(method === tab.id)} onClick={() => setMethod(tab.id)}>
-                    <div style={s.methodIcon(method === tab.id)}>{tab.icon}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={s.methodLabel(method === tab.id)}>{tab.label}</div>
-                      {tab.badge && (
-                        <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#22c55e', backgroundColor: '#f0fdf4', padding: '1px 6px', borderRadius: '99px', display: 'inline-block', marginTop: '2px' }}>
-                          {tab.badge}
-                        </div>
-                      )}
-                    </div>
-                    <div style={s.radioCircle(method === tab.id)}>
-                      {method === tab.id && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f97316' }} />}
-                    </div>
-                  </div>
-                ))}
+              {/* Header */}
+              <div style={s.paymentCardHeader}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Lock size={18} color="#fff" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '1rem', fontWeight: 800, color: '#2d2418', fontFamily: "'Nunito', sans-serif" }}>Secure Payment</div>
+                  <div style={{ fontSize: '0.75rem', color: '#8a7e72' }}>All transactions are 256-bit SSL encrypted</div>
+                </div>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.375rem 0.75rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '99px' }}>
+                  <ShieldCheck size={13} color="#16a34a" />
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#16a34a' }}>SSL Secured</span>
+                </div>
               </div>
 
-              {/* Right: Method content */}
-              <div style={{ flex: 1, padding: '1.5rem' }}>
-                {/* UPI */}
-                {method === 'upi' && (
-                  <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#2d2418', marginBottom: '1rem', fontFamily: "'Nunito', sans-serif" }}>
-                      Select UPI App
+              {/* Method tabs + content */}
+              <div style={{ display: 'flex', minHeight: '420px' }}>
+                {/* Left: Method list */}
+                <div style={{ width: '220px', borderRight: '1px solid #f0ebe4', flexShrink: 0 }}>
+                  {methodTabs.map(tab => (
+                    <div key={tab.id} style={s.methodTab(method === tab.id)} onClick={() => setMethod(tab.id)}>
+                      <div style={s.methodIcon(method === tab.id)}>{tab.icon}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={s.methodLabel(method === tab.id)}>{tab.label}</div>
+                        {tab.badge && (
+                          <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#22c55e', backgroundColor: '#f0fdf4', padding: '1px 6px', borderRadius: '99px', display: 'inline-block', marginTop: '2px' }}>
+                            {tab.badge}
+                          </div>
+                        )}
+                      </div>
+                      <div style={s.radioCircle(method === tab.id)}>
+                        {method === tab.id && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f97316' }} />}
+                      </div>
                     </div>
-                    <div style={s.upiGrid}>
-                      {UPI_APPS.map(app => (
-                        <div
-                          key={app.id}
-                          style={s.upiApp(selectedUpiApp === app.id, app.color)}
-                          onClick={() => setSelectedUpiApp(app.id)}
-                        >
-                          <div style={s.upiAppDot(app.color)} />
-                          <div style={s.upiAppLabel}>{app.label}</div>
-                        </div>
-                      ))}
+                  ))}
+                </div>
+
+                {/* Right: Method content */}
+                <div style={{ flex: 1, padding: '1.5rem' }}>
+                  {/* Razorpay */}
+                  {method === 'razorpay' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '220px', textAlign: 'center', gap: '1rem' }}>
+                      <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'linear-gradient(135deg, #eff6ff, #dbeafe)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Smartphone size={32} color="#3b82f6" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '1rem', fontWeight: 800, color: '#2d2418', fontFamily: "'Nunito', sans-serif", marginBottom: '0.375rem' }}>Razorpay Secure Checkout</div>
+                        <div style={{ fontSize: '0.85rem', color: '#8a7e72', maxWidth: '320px' }}>Pay instantly using Cards, UPI (Google Pay, PhonePe, Paytm), Net Banking, or Wallets.</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.875rem', borderRadius: '9999px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', fontSize: '0.8rem', fontWeight: 700 }}>
+                        <Check size={13} /> Secured by Razorpay
+                      </div>
                     </div>
-                    <div style={{ borderTop: '1px dashed #e5ddd4', paddingTop: '1rem', marginTop: '0.5rem' }}>
-                      <label style={s.label}>Or enter UPI ID</label>
+                  )}
+
+                  {/* Cashfree */}
+                  {method === 'cashfree' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '220px', textAlign: 'center', gap: '1rem' }}>
+                      <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'linear-gradient(135deg, #faf5ff, #f3e8ff)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Building size={32} color="#a855f7" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '1rem', fontWeight: 800, color: '#2d2418', fontFamily: "'Nunito', sans-serif", marginBottom: '0.375rem' }}>Cashfree Payments</div>
+                        <div style={{ fontSize: '0.85rem', color: '#8a7e72', maxWidth: '320px' }}>Redirect to Cashfree secure portal to pay using UPI, Cards, Net Banking, and more.</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.875rem', borderRadius: '9999px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#16a34a', fontSize: '0.8rem', fontWeight: 700 }}>
+                        <Check size={13} /> Secured by Cashfree
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stripe Card */}
+                  {method === 'stripe' && (
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#2d2418', marginBottom: '1rem', fontFamily: "'Nunito', sans-serif" }}>
+                        Enter Card Details (Stripe)
+                      </div>
+                      <label style={s.label}>Card Number</label>
                       <input
                         type="text"
-                        placeholder="yourname@upi"
-                        value={upiId}
-                        onChange={e => setUpiId(e.target.value)}
+                        placeholder="1234 5678 9012 3456"
+                        value={cardNum}
+                        onChange={e => setCardNum(formatCardNum(e.target.value))}
+                        style={s.input}
+                        maxLength={19}
+                      />
+                      <label style={s.label}>Name on Card</label>
+                      <input
+                        type="text"
+                        placeholder="Rahul Sharma"
+                        value={cardName}
+                        onChange={e => setCardName(e.target.value)}
                         style={s.input}
                       />
-                      <div style={s.hint}>e.g. rahul@okicici, 9876543210@ybl</div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem 1rem', backgroundColor: '#fffbeb', borderRadius: '10px', border: '1px solid #fde68a' }}>
-                      <Zap size={14} color="#f59e0b" />
-                      <span style={{ fontSize: '0.78rem', color: '#92400e', fontWeight: 600 }}>UPI payments are instant — no waiting!</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Card */}
-                {method === 'card' && (
-                  <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#2d2418', marginBottom: '1rem', fontFamily: "'Nunito', sans-serif" }}>
-                      Enter Card Details
-                    </div>
-                    <label style={s.label}>Card Number</label>
-                    <input
-                      type="text"
-                      placeholder="1234 5678 9012 3456"
-                      value={cardNum}
-                      onChange={e => setCardNum(formatCardNum(e.target.value))}
-                      style={s.input}
-                      maxLength={19}
-                    />
-                    <label style={s.label}>Name on Card</label>
-                    <input
-                      type="text"
-                      placeholder="Rahul Sharma"
-                      value={cardName}
-                      onChange={e => setCardName(e.target.value)}
-                      style={s.input}
-                    />
-                    <div style={s.formRow}>
-                      <div>
-                        <label style={s.label}>Expiry (MM/YY)</label>
-                        <input
-                          type="text"
-                          placeholder="MM/YY"
-                          value={cardExpiry}
-                          onChange={e => setCardExpiry(formatExpiry(e.target.value))}
-                          style={s.input}
-                          maxLength={5}
-                        />
-                      </div>
-                      <div>
-                        <label style={s.label}>CVV</label>
-                        <input
-                          type="password"
-                          placeholder="•••"
-                          value={cardCvv}
-                          onChange={e => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 3))}
-                          style={s.input}
-                          maxLength={3}
-                        />
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: '#8a7e72' }}>
-                      <Lock size={12} /> Your card details are encrypted and never stored
-                    </div>
-                  </div>
-                )}
-
-                {/* Net Banking */}
-                {method === 'netbanking' && (
-                  <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#2d2418', marginBottom: '1rem', fontFamily: "'Nunito', sans-serif" }}>
-                      Select Your Bank
-                    </div>
-                    <label style={s.label}>Bank</label>
-                    <select
-                      value={selectedBank}
-                      onChange={e => setSelectedBank(e.target.value)}
-                      style={s.select}
-                    >
-                      <option value="">— Choose your bank —</option>
-                      {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
-                    <div style={{ padding: '1rem', backgroundColor: '#f0f9ff', borderRadius: '10px', border: '1px solid #bae6fd', fontSize: '0.8rem', color: '#0369a1' }}>
-                      You will be redirected to your bank's secure portal to complete the payment.
-                    </div>
-                  </div>
-                )}
-
-                {/* Wallets */}
-                {method === 'wallet' && (
-                  <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#2d2418', marginBottom: '1rem', fontFamily: "'Nunito', sans-serif" }}>
-                      Select Wallet
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-                      {WALLETS.map(w => (
-                        <div
-                          key={w.id}
-                          onClick={() => setSelectedWallet(w.id)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: '0.875rem',
-                            padding: '0.875rem 1rem', borderRadius: '12px',
-                            border: `1.5px solid ${selectedWallet === w.id ? w.color : '#e5ddd4'}`,
-                            backgroundColor: selectedWallet === w.id ? `${w.color}10` : '#ffffff',
-                            cursor: 'pointer', transition: 'all 0.2s',
-                          }}
-                        >
-                          <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: w.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#2d2418' }}>{w.label}</span>
-                          {selectedWallet === w.id && (
-                            <div style={{ marginLeft: 'auto', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: w.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Check size={12} color="#fff" />
-                            </div>
-                          )}
+                      <div style={s.formRow}>
+                        <div>
+                          <label style={s.label}>Expiry (MM/YY)</label>
+                          <input
+                            type="text"
+                            placeholder="MM/YY"
+                            value={cardExpiry}
+                            onChange={e => setCardExpiry(formatExpiry(e.target.value))}
+                            style={s.input}
+                            maxLength={5}
+                          />
                         </div>
-                      ))}
+                        <div>
+                          <label style={s.label}>CVV</label>
+                          <input
+                            type="password"
+                            placeholder="•••"
+                            value={cardCvv}
+                            onChange={e => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                            style={s.input}
+                            maxLength={3}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: '#8a7e72', marginTop: '0.5rem' }}>
+                        <Lock size={12} /> Your card details are processed securely via Stripe
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {/* COD */}
-                {method === 'cod' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', textAlign: 'center', gap: '1rem' }}>
-                    <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Package size={32} color="#22c55e" />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '1rem', fontWeight: 800, color: '#2d2418', fontFamily: "'Nunito', sans-serif", marginBottom: '0.375rem' }}>Cash on Delivery</div>
-                      <div style={{ fontSize: '0.85rem', color: '#8a7e72', maxWidth: '280px' }}>Pay with cash when your order arrives. Available for orders under ₹5,000.</div>
-                    </div>
-                    <div style={s.codBadge}>
-                      <Check size={13} /> Available for this order
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#8a7e72' }}>
-                      ₹30 COD handling fee may apply on some orders
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Action row */}
-            <div style={s.actionRow}>
-              <button style={s.backBtn} onClick={() => navigate('/checkout/address')}>
-                <ArrowLeft size={15} /> Back
-              </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f97316', fontFamily: "'Nunito', sans-serif" }}>
-                  ₹{total.toLocaleString('en-IN')}
-                </div>
-                <button style={s.payBtn(processing)} onClick={handlePay} disabled={processing}>
-                  {processing ? (
-                    <>
-                      <div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Lock size={15} /> Pay ₹{total.toLocaleString('en-IN')} <ArrowRight size={15} />
-                    </>
                   )}
+
+                  {/* COD */}
+                  {method === 'cod' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '220px', textAlign: 'center', gap: '1rem' }}>
+                      <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Package size={32} color="#22c55e" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '1rem', fontWeight: 800, color: '#2d2418', fontFamily: "'Nunito', sans-serif", marginBottom: '0.375rem' }}>Cash on Delivery</div>
+                        <div style={{ fontSize: '0.85rem', color: '#8a7e72', maxWidth: '280px' }}>Pay with cash when your order arrives. Available for orders under ₹5,000.</div>
+                      </div>
+                      <div style={s.codBadge}>
+                        <Check size={13} /> Available for this order
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#8a7e72' }}>
+                        ₹30 COD handling fee may apply on some orders
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action row */}
+              <div style={s.actionRow}>
+                <button style={s.backBtn} onClick={() => navigate('/checkout/address')}>
+                  <ArrowLeft size={15} /> Back
                 </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f97316', fontFamily: "'Nunito', sans-serif" }}>
+                    ₹{total.toLocaleString('en-IN')}
+                  </div>
+                  <button style={s.payBtn(processing)} onClick={handlePay} disabled={processing}>
+                    {processing ? (
+                      <>
+                        <div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Lock size={15} /> Pay ₹{total.toLocaleString('en-IN')} <ArrowRight size={15} />
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
 
           {/* Summary Sidebar */}
           <div style={s.summaryCard}>
@@ -659,6 +879,12 @@ export default function Payment() {
                 <span style={s.priceLabel}>Subtotal</span>
                 <span style={s.priceValue}>₹{sub.toLocaleString('en-IN')}</span>
               </div>
+              {couponDiscount > 0 && (
+                <div style={s.priceRow}>
+                  <span style={s.priceLabel}>Coupon Discount ({coupon?.code})</span>
+                  <span style={{ ...s.priceValue, color: '#22c55e' }}>−₹{couponDiscount.toLocaleString('en-IN')}</span>
+                </div>
+              )}
               <div style={s.priceRow}>
                 <span style={s.priceLabel}>Delivery</span>
                 <span style={{ ...s.priceValue, color: deliveryFee === 0 ? '#22c55e' : '#2d2418' }}>

@@ -5,6 +5,7 @@ import ProductList from './pages/products/ProductList';
 import ProductForm from './pages/products/ProductForm';
 import CategoryManager from './pages/categories/CategoryManager';
 import OrderList from './pages/orders/OrderList';
+import OrderDetail from './pages/orders/OrderDetail';
 import CustomerList from './pages/customers/CustomerList';
 import CouponManager from './pages/coupons/CouponManager';
 import SpinConfig from './pages/spin/SpinConfig';
@@ -33,6 +34,7 @@ function AppInner() {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   // Lifted Maintenance Mode state (sync to localStorage)
   const [maintenanceMode, setMaintenanceMode] = useState<boolean>(() => {
@@ -68,13 +70,14 @@ function AppInner() {
 
   const handleBellClick = () => {
     setOrdersInitialFilter('Placed');
+    setSelectedOrderId(null);
     setActiveTab('Orders');
   };
 
   const handleSidebarTabClick = (tab: string) => {
     if (tab === 'Orders') {
-      // Clicking standard menu sidebar resets default filter to All
       setOrdersInitialFilter('All');
+      setSelectedOrderId(null);
     }
     setActiveTab(tab);
   };
@@ -118,10 +121,19 @@ function AppInner() {
       case 'Categories':
         return <CategoryManager />;
       case 'Orders':
+        if (selectedOrderId) {
+          return (
+            <OrderDetail
+              orderId={selectedOrderId}
+              onBack={() => setSelectedOrderId(null)}
+            />
+          );
+        }
         return (
-          <OrderList 
-            initialFilter={ordersInitialFilter} 
+          <OrderList
+            initialFilter={ordersInitialFilter}
             onFilterChange={setOrdersInitialFilter}
+            onViewDetail={(id) => setSelectedOrderId(id)}
           />
         );
       case 'Customers':

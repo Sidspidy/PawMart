@@ -32,7 +32,9 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
 
 // GET /api/admin/orders/:id
 export const getOrderById = asyncHandler(async (req: Request, res: Response) => {
-  const order = await Order.findById(req.params.id).populate('user', 'name email phone');
+  const order = await Order.findById(req.params.id)
+    .populate('user', 'name email phone')
+    .populate('coupon', 'code type value');
   if (!order) throw new NotFoundError('Order not found');
   sendSuccess(res, order, 'Order fetched successfully');
 });

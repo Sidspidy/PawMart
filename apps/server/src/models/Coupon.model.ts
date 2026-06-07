@@ -64,11 +64,11 @@ const CouponSchema = new Schema<ICoupon>(
     usedCount: { type: Number, default: 0, min: 0 },
     applicableCategories: [{ type: Schema.Types.ObjectId, ref: 'Category' }],
     applicableProducts: [{ type: Schema.Types.ObjectId, ref: 'Product' }],
-    applicableUsers: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    applicableUsers: [{ type: Schema.Types.ObjectId, ref: 'Customer' }],
     isActive: { type: Boolean, default: true },
     startsAt: { type: Date, required: true },
     expiresAt: { type: Date, required: true },
-    createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'Admin', required: false },
   },
   {
     timestamps: true,

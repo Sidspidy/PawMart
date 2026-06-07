@@ -1,69 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, ChevronRight, Search, Filter, ShoppingBag, RotateCcw, Star } from 'lucide-react';
+import { Package, ChevronRight, Search, ShoppingBag, RotateCcw, Star } from 'lucide-react';
+import { api } from '../../api';
 
 type OrderStatus = 'all' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
-interface MockOrder {
-  id: string;
-  date: string;
-  status: 'processing' | 'shipped' | 'delivered' | 'cancelled';
-  items: { name: string; image: string; qty: number; price: number }[];
-  total: number;
-  estimatedDelivery?: string;
+interface OrderItem {
+  product: string;
+  productName: string;
+  productImage: string;
+  variant?: string;
+  sku: string;
+  quantity: number;
+  price: number;
 }
 
-const MOCK_ORDERS: MockOrder[] = [
-  {
-    id: 'PAWXR9821',
-    date: '2026-05-24',
-    status: 'shipped',
-    items: [
-      { name: 'Premium Grain-Free Salmon Kibble', image: '/images/hero/dog.png', qty: 2, price: 1899 },
-      { name: 'Ultra-Durable Natural Rubber Chew Toy', image: '/images/hero/dog.png', qty: 1, price: 799 },
-    ],
-    total: 4597,
-    estimatedDelivery: '30 May 2026',
-  },
-  {
-    id: 'PAWMK4431',
-    date: '2026-05-18',
-    status: 'delivered',
-    items: [
-      { name: 'Orthopedic Memory Foam Pet Bed', image: '/images/hero/puppy.png', qty: 1, price: 3499 },
-    ],
-    total: 3499,
-  },
-  {
-    id: 'PAWQT7760',
-    date: '2026-05-10',
-    status: 'delivered',
-    items: [
-      { name: 'Gourmet Tuna & Salmon Wet Paté', image: '/images/hero/cat.png', qty: 6, price: 99 },
-      { name: 'Interactive Multi-Level Scratch Tree', image: '/images/hero/kitten.png', qty: 1, price: 4599 },
-    ],
-    total: 5193,
-  },
-  {
-    id: 'PAWBZ2201',
-    date: '2026-04-29',
-    status: 'cancelled',
-    items: [
-      { name: 'Dynamic LED Curved Glass Aquarium Kit', image: '/images/hero/fish.png', qty: 1, price: 6499 },
-    ],
-    total: 6499,
-  },
-  {
-    id: 'PAWCR0554',
-    date: '2026-05-28',
-    status: 'processing',
-    items: [
-      { name: 'Sun-Cured Mountain Timothy Hay', image: '/images/hero/puppy.png', qty: 2, price: 349 },
-    ],
-    total: 698,
-    estimatedDelivery: '1 Jun 2026',
-  },
-];
+interface DbOrder {
+  _id: string;
+  orderNumber: string;
+  createdAt: string;
+  status: string;
+  items: OrderItem[];
+  total: number;
+  shippingFee: number;
+  discount: number;
+  subtotal: number;
+  estimatedDelivery?: string;
+}
 
 const STATUS_CONFIG = {
   processing: { label: 'Processing', color: '#f59e0b', bg: '#fffbeb', border: '#fde68a' },
@@ -80,14 +43,42 @@ const FILTER_TABS: { key: OrderStatus; label: string }[] = [
   { key: 'cancelled',  label: 'Cancelled' },
 ];
 
+const mapStatus = (status: string): 'processing' | 'shipped' | 'delivered' | 'cancelled' => {
+  const s = status.toLowerCase();
+  if (['pending', 'confirmed', 'packed', 'processing'].includes(s)) return 'processing';
+  if (['shipped', 'out_for_delivery'].includes(s)) return 'shipped';
+  if (s === 'delivered') return 'delivered';
+  return 'cancelled';
+};
+
 export default function Orders() {
+  const [orders, setOrders] = useState<DbOrder[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<OrderStatus>('all');
   const [search, setSearch] = useState('');
 
-  const filtered = MOCK_ORDERS.filter(o => {
-    const matchStatus = activeFilter === 'all' || o.status === activeFilter;
-    const matchSearch = !search || o.id.toLowerCase().includes(search.toLowerCase()) ||
-      o.items.some(i => i.name.toLowerCase().includes(search.toLowerCase()));
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const response = await api.get('/orders');
+        if (response.data?.success) {
+          setOrders(response.data.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch orders:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrders();
+  }, []);
+
+  const filtered = orders.filter(o => {
+    const active = mapStatus(o.status);
+    const matchStatus = activeFilter === 'all' || active === activeFilter;
+    const matchSearch = !search || 
+      o.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
+      o.items.some(i => i.productName.toLowerCase().includes(search.toLowerCase()));
     return matchStatus && matchSearch;
   });
 
@@ -109,7 +100,6 @@ export default function Orders() {
       color: '#8a7e72',
       marginTop: '0.2rem',
     } as React.CSSProperties,
-    // Filters
     filterBar: {
       display: 'flex',
       alignItems: 'center',
@@ -157,7 +147,6 @@ export default function Orders() {
       transition: 'all 0.2s',
       whiteSpace: 'nowrap' as const,
     } as React.CSSProperties),
-    // Order cards
     orderCard: {
       backgroundColor: '#ffffff',
       borderRadius: '16px',
@@ -269,7 +258,6 @@ export default function Orders() {
       textDecoration: 'none',
       cursor: 'pointer',
     } as React.CSSProperties,
-    // Empty state
     emptyState: {
       display: 'flex', flexDirection: 'column' as const, alignItems: 'center',
       justifyContent: 'center', padding: '4rem 2rem', gap: '1rem',
@@ -288,7 +276,9 @@ export default function Orders() {
       <div style={s.pageHeader}>
         <div>
           <h1 style={s.title}>My Orders</h1>
-          <p style={s.subtitle}>{MOCK_ORDERS.length} total orders</p>
+          <p style={s.subtitle}>
+            {loading ? 'Loading...' : `${orders.length} total orders`}
+          </p>
         </div>
       </div>
 
@@ -314,7 +304,11 @@ export default function Orders() {
       </div>
 
       {/* Orders list */}
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem 0' }}>
+          <div className="spinner" />
+        </div>
+      ) : filtered.length === 0 ? (
         <div style={s.emptyState}>
           <div style={s.emptyIcon}><Package size={32} color="#f97316" strokeWidth={1.5} /></div>
           <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#2d2418', fontFamily: "'Nunito', sans-serif" }}>No orders found</div>
@@ -322,65 +316,68 @@ export default function Orders() {
           <Link to="/products" style={s.detailBtn}><ShoppingBag size={14} /> Shop Now</Link>
         </div>
       ) : (
-        filtered.map(order => (
-          <div key={order.id} style={s.orderCard}>
-            {/* Header */}
-            <div style={s.orderHeader}>
-              <div>
-                <div style={s.orderId}>#{order.id}</div>
-                <div style={s.orderDate}>
-                  Placed on {new Date(order.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  {order.estimatedDelivery && ` · Est. ${order.estimatedDelivery}`}
+        filtered.map(order => {
+          const mappedStatusKey = mapStatus(order.status);
+          return (
+            <div key={order._id} style={s.orderCard}>
+              {/* Header */}
+              <div style={s.orderHeader}>
+                <div>
+                  <div style={s.orderId}>#{order.orderNumber}</div>
+                  <div style={s.orderDate}>
+                    Placed on {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {order.estimatedDelivery && ` · Est. ${order.estimatedDelivery}`}
+                  </div>
+                </div>
+                <div style={s.statusBadge(mappedStatusKey)}>
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: STATUS_CONFIG[mappedStatusKey].color }} />
+                  {STATUS_CONFIG[mappedStatusKey].label}
                 </div>
               </div>
-              <div style={s.statusBadge(order.status)}>
-                <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: STATUS_CONFIG[order.status].color }} />
-                {STATUS_CONFIG[order.status].label}
-              </div>
-            </div>
 
-            {/* Items */}
-            <div style={s.orderBody}>
-              {order.items.slice(0, 2).map((item, i) => (
-                <div key={i} style={s.itemRow}>
-                  <img src={item.image} alt={item.name} style={s.itemImg}
-                    onError={e => { (e.target as HTMLImageElement).src = '/images/hero/dog.png'; }} />
-                  <div style={s.itemName}>{item.name}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#8a7e72', flexShrink: 0, marginRight: '0.5rem' }}>×{item.qty}</div>
-                  <div style={s.itemPrice}>₹{(item.price * item.qty).toLocaleString('en-IN')}</div>
-                </div>
-              ))}
-              {order.items.length > 2 && (
-                <div style={{ fontSize: '0.75rem', color: '#8a7e72', paddingTop: '0.25rem' }}>
-                  +{order.items.length - 2} more item{order.items.length - 2 > 1 ? 's' : ''}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div style={s.orderFooter}>
-              <div style={s.totalWrap}>
-                Total &nbsp;
-                <span style={s.totalAmt}>₹{order.total.toLocaleString('en-IN')}</span>
-              </div>
-              <div style={s.footerBtns}>
-                {order.status === 'delivered' && (
-                  <button style={s.actionBtn}>
-                    <Star size={12} /> Rate & Review
-                  </button>
+              {/* Items */}
+              <div style={s.orderBody}>
+                {order.items.slice(0, 2).map((item, i) => (
+                  <div key={i} style={s.itemRow}>
+                    <img src={item.productImage || '/images/hero/dog.png'} alt={item.productName} style={s.itemImg}
+                      onError={e => { (e.target as HTMLImageElement).src = '/images/hero/dog.png'; }} />
+                    <div style={s.itemName}>{item.productName}</div>
+                    <div style={{ fontSize: '0.72rem', color: '#8a7e72', flexShrink: 0, marginRight: '0.5rem' }}>×{item.quantity}</div>
+                    <div style={s.itemPrice}>₹{(item.price * item.quantity).toLocaleString('en-IN')}</div>
+                  </div>
+                ))}
+                {order.items.length > 2 && (
+                  <div style={{ fontSize: '0.75rem', color: '#8a7e72', paddingTop: '0.25rem' }}>
+                    +{order.items.length - 2} more item{order.items.length - 2 > 1 ? 's' : ''}
+                  </div>
                 )}
-                {order.status === 'delivered' && (
-                  <Link to="/products" style={s.actionBtn}>
-                    <RotateCcw size={12} /> Reorder
+              </div>
+
+              {/* Footer */}
+              <div style={s.orderFooter}>
+                <div style={s.totalWrap}>
+                  Total &nbsp;
+                  <span style={s.totalAmt}>₹{order.total.toLocaleString('en-IN')}</span>
+                </div>
+                <div style={s.footerBtns}>
+                  {mappedStatusKey === 'delivered' && (
+                    <button style={s.actionBtn}>
+                      <Star size={12} /> Rate & Review
+                    </button>
+                  )}
+                  {mappedStatusKey === 'delivered' && (
+                    <Link to="/products" style={s.actionBtn}>
+                      <RotateCcw size={12} /> Reorder
+                    </Link>
+                  )}
+                  <Link to={`/dashboard/orders/${order._id}`} style={s.detailBtn}>
+                    View Details <ChevronRight size={13} />
                   </Link>
-                )}
-                <Link to={`/dashboard/orders/${order.id}`} style={s.detailBtn}>
-                  View Details <ChevronRight size={13} />
-                </Link>
+                </div>
               </div>
             </div>
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );

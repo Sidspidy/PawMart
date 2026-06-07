@@ -28,7 +28,7 @@ const CartItemSchema = new Schema<ICartItem>(
 
 const CartSchema = new Schema<ICart>(
   {
-    user: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true },
+    user: { type: Schema.Types.ObjectId, ref: 'Customer', required: true, unique: true, index: true },
     items: { type: [CartItemSchema], default: [] },
     subtotal: { type: Number, default: 0, min: 0 },
   },

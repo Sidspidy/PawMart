@@ -22,7 +22,7 @@ export interface ISpinResult extends Document {
 
 const SpinResultSchema = new Schema<ISpinResult>(
   {
-    user: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    user: { type: Schema.Types.ObjectId, ref: 'Customer', required: true, index: true },
     prizeType: { type: String, enum: Object.values(PrizeType), required: true },
     prizeValue: { type: Number },
     couponCode: { type: String },

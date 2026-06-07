@@ -24,7 +24,7 @@ export interface IPointsTransaction extends Document {
 
 const PointsSchema = new Schema<IPointsTransaction>(
   {
-    user: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    user: { type: Schema.Types.ObjectId, ref: 'Customer', required: true, index: true },
     type: { type: String, enum: Object.values(PointsTransactionType), required: true },
     points: { type: Number, required: true },
     balanceAfter: { type: Number, required: true, min: 0 },

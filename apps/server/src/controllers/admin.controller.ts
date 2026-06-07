@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../utils/asyncHandler';
 import { sendSuccess } from '../utils/apiResponse';
-import { User, UserRole } from '../models/User.model';
+import { Customer } from '../models/Customer.model';
 import { Order, OrderStatus } from '../models/Order.model';
 import { Product } from '../models/Product.model';
 import { buildPagination } from '../utils/apiResponse';
@@ -17,7 +17,7 @@ export const getDashboardStats = asyncHandler(async (_req: Request, res: Respons
     pendingOrders,
     lowStockCount,
   ] = await Promise.all([
-    User.countDocuments({ role: UserRole.CUSTOMER }),
+    Customer.countDocuments(),
     Order.countDocuments(),
     Product.countDocuments({ isActive: true }),
     Order.aggregate([
@@ -59,7 +59,7 @@ export const getCustomers = asyncHandler(async (req: Request, res: Response) => 
   const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
   const skip = (page - 1) * limit;
 
-  const filter: Record<string, unknown> = { role: UserRole.CUSTOMER };
+  const filter: Record<string, any> = {};
   if (req.query.q) {
     filter.$or = [
       { name: { $regex: req.query.q, $options: 'i' } },
@@ -68,8 +68,8 @@ export const getCustomers = asyncHandler(async (req: Request, res: Response) => 
   }
 
   const [customers, total] = await Promise.all([
-    User.find(filter).select('-addresses').sort({ createdAt: -1 }).skip(skip).limit(limit),
-    User.countDocuments(filter),
+    Customer.find(filter).select('-password').sort({ createdAt: -1 }).skip(skip).limit(limit),
+    Customer.countDocuments(filter),
   ]);
 
   sendSuccess(res, customers, 'Customers fetched', 200, buildPagination(page, limit, total));
@@ -77,11 +77,11 @@ export const getCustomers = asyncHandler(async (req: Request, res: Response) => 
 
 // PATCH /api/admin/users/:id/toggle
 export const toggleUserStatus = asyncHandler(async (req: Request, res: Response) => {
-  const user = await User.findById(req.params.id);
-  if (!user) throw new NotFoundError('User not found');
+  const user = await Customer.findById(req.params.id);
+  if (!user) throw new NotFoundError('Customer not found');
   user.isActive = !user.isActive;
   await user.save();
-  sendSuccess(res, { isActive: user.isActive }, `User ${user.isActive ? 'activated' : 'deactivated'}`);
+  sendSuccess(res, { isActive: user.isActive }, `Customer ${user.isActive ? 'activated' : 'deactivated'}`);
 });
 
 // GET /api/admin/top-products

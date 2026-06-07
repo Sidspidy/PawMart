@@ -40,6 +40,7 @@ const envSchema = z.object({
   // Payments
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
+  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   CASHFREE_APP_ID: z.string().optional(),

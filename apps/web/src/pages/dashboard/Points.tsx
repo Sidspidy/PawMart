@@ -1,21 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Star, Gift, ShoppingBag, TrendingUp, ChevronRight, Zap, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '../../store/auth.store';
+import { useToastStore } from '../../store/toast.store';
+import { api } from '../../api';
+
+interface PointTransaction {
+  _id: string;
+  type: string;
+  points: number;
+  description: string;
+  createdAt: string;
+}
 
 const TIERS = [
   { name: 'Paw Starter',   min: 0,     max: 999,   color: '#94a3b8', bg: '#f1f5f9', icon: '🐾' },
   { name: 'Paw Explorer',  min: 1000,  max: 2499,  color: '#f97316', bg: '#fff7ed', icon: '🐕' },
   { name: 'Paw Champion',  min: 2500,  max: 4999,  color: '#a855f7', bg: '#faf5ff', icon: '🏆' },
   { name: 'Paw Royale',    min: 5000,  max: Infinity, color: '#f59e0b', bg: '#fffbeb', icon: '👑' },
-];
-
-const HISTORY = [
-  { id: 1, type: 'earn',   desc: 'Order #PAWXR9821',          pts: +250, date: '24 May 2026' },
-  { id: 2, type: 'earn',   desc: 'Order #PAWMK4431',          pts: +175, date: '18 May 2026' },
-  { id: 3, type: 'redeem', desc: 'Redeemed on Order',         pts: -200, date: '12 May 2026' },
-  { id: 4, type: 'earn',   desc: 'Daily check-in bonus',      pts: +50,  date: '10 May 2026' },
-  { id: 5, type: 'earn',   desc: 'Referral bonus (Priya D.)', pts: +500, date: '5 May 2026' },
-  { id: 6, type: 'redeem', desc: 'Coupon generated',          pts: -300, date: '1 May 2026' },
 ];
 
 const WAYS_TO_EARN = [
@@ -25,21 +27,68 @@ const WAYS_TO_EARN = [
   { label: 'Daily check-in',     pts: '10–50 pts',      icon: Zap,         done: false },
 ];
 
-const CURRENT_PTS = 1250;
-
 export default function Points() {
+  const { user, updateUser } = useAuthStore();
+  const { addToast } = useToastStore();
   const [tab, setTab] = useState<'history' | 'redeem'>('history');
+  const [history, setHistory] = useState<PointTransaction[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const tier = TIERS.find(t => CURRENT_PTS >= t.min && CURRENT_PTS <= t.max) || TIERS[0];
+  const currentPts = user?.pointsBalance || 0;
+
+  const tier = TIERS.find(t => currentPts >= t.min && currentPts <= t.max) || TIERS[0];
   const nextTier = TIERS[TIERS.indexOf(tier) + 1];
   const pct = nextTier
-    ? Math.round(((CURRENT_PTS - tier.min) / (nextTier.min - tier.min)) * 100)
+    ? Math.round(((currentPts - tier.min) / (nextTier.min - tier.min)) * 100)
     : 100;
+
+  useEffect(() => {
+    // Sync latest balance from server on mount
+    api.get('/points/balance').then(res => {
+      if (res.data?.success && res.data.data) {
+        updateUser({
+          pointsBalance: res.data.data.pointsBalance || 0,
+          totalSpins: res.data.data.totalSpins || 0,
+        });
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/points/history');
+        if (response.data?.success) {
+          setHistory(response.data.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch points history:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchHistory();
+  }, []);
+
+
+  const totalEarned = history
+    .filter(h => h.points > 0)
+    .reduce((sum, h) => sum + h.points, 0);
+
+  const totalRedeemed = Math.abs(
+    history
+      .filter(h => h.points < 0)
+      .reduce((sum, h) => sum + h.points, 0)
+  );
+
+  const handleRedeemClick = (opt: any) => {
+    addToast(`Successfully generated coupon for ${opt.value}! 🐾`, 'success');
+  };
 
   const s = {
     title: { fontSize: '1.5rem', fontWeight: 900, color: '#2d2418', fontFamily: "'Nunito', sans-serif", marginBottom: '0.25rem' } as React.CSSProperties,
     subtitle: { fontSize: '0.82rem', color: '#8a7e72', marginBottom: '1.5rem' } as React.CSSProperties,
-    // Balance card
     balanceCard: {
       background: 'linear-gradient(135deg, #f97316 0%, #ea580c 50%, #dc2626 100%)',
       borderRadius: '20px', padding: '2rem', marginBottom: '1.25rem',
@@ -57,7 +106,6 @@ export default function Points() {
       height: '100%', borderRadius: '99px', backgroundColor: '#ffffff',
       width: `${pct}%`, transition: 'width 0.8s ease',
     } as React.CSSProperties,
-    // Stats
     statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.25rem' } as React.CSSProperties,
     statCard: {
       backgroundColor: '#ffffff', borderRadius: '16px', padding: '1.25rem',
@@ -66,18 +114,16 @@ export default function Points() {
     } as React.CSSProperties,
     statNum: { fontSize: '1.5rem', fontWeight: 900, fontFamily: "'Nunito', sans-serif", color: '#f97316' } as React.CSSProperties,
     statLabel: { fontSize: '0.72rem', color: '#8a7e72', marginTop: '0.2rem' } as React.CSSProperties,
-    // Tabs
     tabsRow: {
       display: 'flex', gap: '0.375rem', backgroundColor: '#ffffff',
       borderRadius: '12px', border: '1px solid #e5ddd4', padding: '0.3rem', marginBottom: '1rem',
     } as React.CSSProperties,
     tab: (active: boolean) => ({
-      flex: 1, padding: '0.5rem', borderRadius: '9px', border: 'none',
+      flex: 1, padding: '0.5rem', borderRadius: '99px', border: 'none',
       fontWeight: active ? 700 : 500, fontSize: '0.82rem',
       color: active ? '#ffffff' : '#8a7e72',
       background: active ? '#f97316' : 'transparent', cursor: 'pointer', transition: 'all 0.2s',
     } as React.CSSProperties),
-    // History
     historyCard: {
       backgroundColor: '#ffffff', borderRadius: '20px',
       border: '1px solid #e5ddd4', overflow: 'hidden',
@@ -99,7 +145,6 @@ export default function Points() {
       color: earn ? '#22c55e' : '#ef4444',
       fontFamily: "'Nunito', sans-serif",
     } as React.CSSProperties),
-    // Redeem
     redeemGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' } as React.CSSProperties,
     redeemCard: {
       backgroundColor: '#ffffff', borderRadius: '16px',
@@ -117,7 +162,6 @@ export default function Points() {
       color: enough ? '#ffffff' : '#b0a99f',
       fontWeight: 700, fontSize: '0.78rem', cursor: enough ? 'pointer' : 'not-allowed',
     } as React.CSSProperties),
-    // Ways to earn
     earnCard: {
       backgroundColor: '#ffffff', borderRadius: '20px',
       border: '1px solid #e5ddd4', overflow: 'hidden',
@@ -135,10 +179,10 @@ export default function Points() {
   };
 
   const REDEEM_OPTIONS = [
-    { pts: 200, value: '₹20 OFF', title: '₹20 Discount', desc: 'Apply to any order', enough: CURRENT_PTS >= 200 },
-    { pts: 500, value: '₹60 OFF', title: '₹60 Discount', desc: 'Min. order ₹499', enough: CURRENT_PTS >= 500 },
-    { pts: 1000, value: '₹130 OFF', title: '₹130 Discount', desc: 'Min. order ₹999', enough: CURRENT_PTS >= 1000 },
-    { pts: 2500, value: 'Free Ship', title: 'Free Delivery', desc: 'On any 3 orders', enough: CURRENT_PTS >= 2500 },
+    { pts: 200, value: '₹20 OFF', title: '₹20 Discount', desc: 'Apply to any order', enough: currentPts >= 200 },
+    { pts: 500, value: '₹60 OFF', title: '₹60 Discount', desc: 'Min. order ₹499', enough: currentPts >= 500 },
+    { pts: 1000, value: '₹130 OFF', title: '₹130 Discount', desc: 'Min. order ₹999', enough: currentPts >= 1000 },
+    { pts: 2500, value: 'Free Ship', title: 'Free Delivery', desc: 'On any 3 orders', enough: currentPts >= 2500 },
   ];
 
   return (
@@ -150,14 +194,14 @@ export default function Points() {
       <div style={s.balanceCard}>
         <div style={{ position: 'absolute', top: '-30px', right: '-30px', width: '150px', height: '150px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.06)' }} />
         <div style={{ position: 'absolute', bottom: '-20px', left: '60%', width: '100px', height: '100px', borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.04)' }} />
-        <div style={s.balancePts}>{CURRENT_PTS.toLocaleString('en-IN')}</div>
+        <div style={s.balancePts}>{currentPts.toLocaleString('en-IN')}</div>
         <div style={s.balanceLabel}>PawPoints Balance</div>
         <div style={s.tierRow}>
           <span style={{ fontSize: '1.1rem' }}>{tier.icon}</span>
           <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{tier.name}</span>
           {nextTier && (
             <span style={{ fontSize: '0.72rem', opacity: 0.75, marginLeft: 'auto' }}>
-              {nextTier.min - CURRENT_PTS} pts to {nextTier.name}
+              {nextTier.min - currentPts} pts to {nextTier.name}
             </span>
           )}
         </div>
@@ -167,16 +211,16 @@ export default function Points() {
       {/* Stats */}
       <div style={s.statsGrid}>
         <div style={s.statCard}>
-          <div style={s.statNum}>2,475</div>
+          <div style={s.statNum}>{loading ? '...' : totalEarned.toLocaleString('en-IN')}</div>
           <div style={s.statLabel}>Total Earned</div>
         </div>
         <div style={s.statCard}>
-          <div style={s.statNum}>500</div>
+          <div style={s.statNum}>{loading ? '...' : totalRedeemed.toLocaleString('en-IN')}</div>
           <div style={s.statLabel}>Total Redeemed</div>
         </div>
         <div style={s.statCard}>
-          <div style={s.statNum}>7</div>
-          <div style={s.statLabel}>Days Streak</div>
+          <div style={s.statNum}>{user?.totalSpins || 0}</div>
+          <div style={s.statLabel}>Wheel Spins</div>
         </div>
       </div>
 
@@ -188,21 +232,34 @@ export default function Points() {
 
       {tab === 'history' ? (
         <div style={s.historyCard}>
-          {HISTORY.map(h => {
-            const isEarn = h.pts > 0;
-            return (
-              <div key={h.id} style={s.historyItem}>
-                <div style={s.histIcon(isEarn)}>
-                  {isEarn ? <TrendingUp size={16} color="#22c55e" /> : <Gift size={16} color="#ef4444" />}
+          {loading ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem 0' }}>
+              <div className="spinner" />
+            </div>
+          ) : history.length === 0 ? (
+            <div style={{ padding: '3rem', textAlign: 'center', color: '#8a7e72', fontSize: '0.85rem' }}>
+              No points history found. Keep ordering to earn PawPoints! 🐾
+            </div>
+          ) : (
+            history.map(h => {
+              const isEarn = h.points > 0;
+              return (
+                <div key={h._id} style={s.historyItem}>
+                  <div style={s.histIcon(isEarn)}>
+                    {isEarn ? <TrendingUp size={16} color="#22c55e" /> : <Gift size={16} color="#ef4444" />}
+                  </div>
+                  <div>
+                    <div style={s.histDesc}>{h.description}</div>
+                    <div style={s.histDate}>
+                      <Clock size={10} style={{ display: 'inline', marginRight: '3px', verticalAlign: 'middle' }} />
+                      {new Date(h.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                  <div style={s.histPts(isEarn)}>{isEarn ? '+' : ''}{h.points} pts</div>
                 </div>
-                <div>
-                  <div style={s.histDesc}>{h.desc}</div>
-                  <div style={s.histDate}><Clock size={10} style={{ display: 'inline', marginRight: '3px' }} />{h.date}</div>
-                </div>
-                <div style={s.histPts(isEarn)}>{isEarn ? '+' : ''}{h.pts} pts</div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       ) : (
         <div style={s.redeemGrid}>
@@ -212,7 +269,11 @@ export default function Points() {
               <div style={s.redeemVal}>= {opt.value}</div>
               <div style={s.redeemTitle}>{opt.title}</div>
               <div style={s.redeemDesc}>{opt.desc}</div>
-              <button style={s.redeemBtn(opt.enough)} disabled={!opt.enough}>
+              <button 
+                style={s.redeemBtn(opt.enough)} 
+                disabled={!opt.enough}
+                onClick={() => handleRedeemClick(opt)}
+              >
                 {opt.enough ? 'Redeem Now' : 'Need More Points'}
               </button>
             </div>

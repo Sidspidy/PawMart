@@ -1,94 +1,229 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
+import { api } from '../../api';
+import { useAuthStore } from '../../store/auth.store';
+import { useToastStore } from '../../store/toast.store';
 
 interface AuthContainerProps {
-  initialMode: 'login' | 'register' | 'forgot';
+  initialMode: 'login' | 'register';
 }
 
 export default function AuthContainer({ initialMode }: AuthContainerProps) {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot-password'>(initialMode);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [otpStep, setOtpStep] = useState<'email' | 'code'>('email');
 
   // Form State variables
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
 
-  // Form errors
+  // Loading & error states
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Switch auth modes with blur and sliding layout transitions
-  const handleModeSwitch = (targetMode: 'login' | 'register' | 'forgot') => {
+  const { setAuth } = useAuthStore();
+  const { addToast } = useToastStore();
+
+  // Switch auth modes with sliding transitions
+  const handleModeSwitch = (targetMode: 'login' | 'register' | 'forgot-password') => {
     if (targetMode === mode) return;
     setIsTransitioning(true);
     setError('');
     setSuccessMsg('');
-    
-    // Step 1: Blur and fade out form content
+    setOtpStep('email');
+    setPassword('');
+    setConfirmPassword('');
+    setOtp('');
+
     setTimeout(() => {
-      // Step 2: Swap modes (which triggers Framer Motion's panel swap layout animation)
       setMode(targetMode);
-      setOtpStep('email'); // Reset OTP step on transition
-      
-      // Step 3: Fade and unblur form content once layout slide finishes
       setTimeout(() => {
         setIsTransitioning(false);
-      }, 350);
-    }, 180);
+      }, 300);
+    }, 150);
   };
 
-  const handleSendOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) {
-      setError('Please enter your email address');
-      return;
-    }
-    setError('');
-    setSuccessMsg('OTP code sent to ' + email + '! Check your inbox.');
-    setOtpStep('code');
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
 
-    if (mode === 'login') {
-      if (!email) {
-        setError('Please enter your email address');
-        return;
-      }
-      if (!password) {
-        setError('Please enter your password');
-        return;
-      }
-      setSuccessMsg('Login successful! Welcome back to PawMart 🐾');
-      setTimeout(() => navigate('/'), 1500);
-    } else if (mode === 'register') {
-      if (!name) return setError('Name is required');
-      if (!email) return setError('Email is required');
-      if (!password) return setError('Password is required');
-      if (password !== confirmPassword) return setError('Passwords do not match');
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      return;
+    }
 
-      setSuccessMsg('Registration successful! Welcome to the PawMart family 🐾');
-      setTimeout(() => handleModeSwitch('login'), 1800);
-    } else if (mode === 'forgot') {
-      if (otpStep === 'email') {
-        if (!email) return setError('Please enter your email address');
-        setSuccessMsg('Reset code sent! Check your inbox.');
+    setIsLoading(true);
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      if (response.data?.success) {
+        const { user, tokens } = response.data.data;
+
+        // Set Auth Store State
+        setAuth(user, tokens.accessToken, tokens.refreshToken);
+        addToast('Welcome back to PawMart! 🐾', 'success');
+        setSuccessMsg('Login successful!');
+
+        setTimeout(() => {
+          navigate('/');
+        }, 1000);
+      } else {
+        setError(response.data?.message || 'Login failed');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.message || 'Invalid email or password');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegisterOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (!name || !email || !phone || !password || !confirmPassword) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await api.post('/auth/register/send-otp', { email });
+      if (response.data?.success) {
+        addToast(`OTP sent to ${email}! Check your console/email 🐾`, 'success');
+        setSuccessMsg(`An OTP has been sent successfully to ${email}.`);
         setOtpStep('code');
       } else {
-        if (!otp || otp.length < 6) return setError('Please enter the 6-digit code');
-        if (!password) return setError('Please enter a new password');
-        setSuccessMsg('Password reset successful! You can now log in.');
-        setTimeout(() => handleModeSwitch('login'), 1800);
+        setError(response.data?.message || 'Failed to send OTP');
       }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.message || 'Error occurred while sending OTP');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegisterVerifySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (!otp || otp.length < 6) {
+      setError('Please enter the 6-digit OTP code');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await api.post('/auth/register/verify', {
+        email,
+        name,
+        phone,
+        password,
+        otp,
+      });
+
+      if (response.data?.success) {
+        const { user, tokens } = response.data.data;
+
+        setAuth(user, tokens.accessToken, tokens.refreshToken);
+        addToast('Welcome to the PawMart family! 🐾', 'success');
+        setSuccessMsg('Registration successful!');
+
+        setTimeout(() => {
+          navigate('/');
+        }, 1000);
+      } else {
+        setError(response.data?.message || 'Invalid OTP code');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPasswordOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (!email) {
+      setError('Please enter your email address');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await api.post('/auth/forgot-password/send-otp', { email });
+      if (response.data?.success) {
+        addToast(`Reset OTP code sent to ${email}! 🐾`, 'success');
+        setSuccessMsg(`A password reset code has been sent successfully to ${email}.`);
+        setOtpStep('code');
+      } else {
+        setError(response.data?.message || 'Failed to send OTP');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.message || 'Account not found or OTP failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPasswordVerifySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (!otp || !password || !confirmPassword) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await api.post('/auth/forgot-password/verify', {
+        email,
+        password,
+        otp,
+      });
+
+      if (response.data?.success) {
+        addToast('Password reset successful! 🐾', 'success');
+        setSuccessMsg('Your password has been reset successfully. Please login.');
+        setTimeout(() => {
+          handleModeSwitch('login');
+        }, 1500);
+      } else {
+        setError(response.data?.message || 'Invalid OTP code');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -104,7 +239,7 @@ export default function AuthContainer({ initialMode }: AuthContainerProps) {
       position: 'relative',
       overflow: 'hidden',
     }}>
-      {/* ── Decorative Background Ambient Orbs ────────────────── */}
+      {/* Decorative Background Ambient Orbs */}
       <div style={{
         position: 'absolute', top: '-10%', left: '-10%', width: '40vw', height: '40vw',
         borderRadius: '50%', background: 'radial-gradient(circle, rgba(249,115,22,0.08) 0%, transparent 70%)',
@@ -116,7 +251,7 @@ export default function AuthContainer({ initialMode }: AuthContainerProps) {
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* ── Floating Absolute Back to Home Button ───────────── */}
+      {/* Floating Absolute Back to Home Button */}
       <Link
         to="/"
         style={{
@@ -153,38 +288,28 @@ export default function AuthContainer({ initialMode }: AuthContainerProps) {
         🐾 Back to Store
       </Link>
 
-      {/* ── Outer Card Wrapper ─────────────────────────────── */}
-      <motion.div
-        layout
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      {/* Outer Card Wrapper (Main static size card) */}
+      <div
         style={{
           width: '100%',
           maxWidth: 980,
-          height: mode === 'register' ? 620 : 600,
+          height: mode === 'register' ? 620 : 540,
           background: 'rgba(26, 21, 16, 0.4)',
           borderRadius: 32,
-          backdropFilter: 'blur(20px)',
           boxShadow: '0 25px 60px -12px rgba(249, 115, 22, 0.12), 0 0 0 1px rgba(249, 115, 22, 0.04)',
-          display: 'flex',
-          flexDirection: mode === 'register' ? 'row-reverse' : 'row', // Animates positions swapping!
-          overflow: 'hidden',
           position: 'relative',
+          overflow: 'hidden',
           zIndex: 5,
+          transition: 'height 400ms cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
-        {/* ── IMAGE PANEL (ARTISTIC BACKDROP) ── */}
-        <motion.div
-          layout
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          style={{
-            flex: '0 0 48%', // Stable fixed width!
-            position: 'relative',
-            height: '100%',
-            overflow: 'hidden',
-            background: '#251e18',
-          }}
-        >
-          {/* Flat vector background illustration */}
+        {/* 1. FULL BACKGROUND BACKDROP (NEVER COMPRESSED OR SHRUNK) */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 1,
+          pointerEvents: 'none',
+        }}>
           <img
             src="/images/footer.png"
             alt="PawMart Nature World"
@@ -196,538 +321,551 @@ export default function AuthContainer({ initialMode }: AuthContainerProps) {
               display: 'block',
             }}
           />
-
-          {/* Decorative sunset brand overlay */}
-          <div style={{
-            position: 'absolute', inset: 0,
-            background: 'linear-gradient(135deg, rgba(249,115,22,0.2) 0%, rgba(26,21,16,0.45) 100%)',
-          }} />
-
-          {/* Large Stylized Logo and Welcome Info */}
+          {/* Rich semi-transparent ambient gradient cover overlay for excellent contrast */}
           <div style={{
             position: 'absolute',
-            top: '25%',
-            left: '10%',
-            right: '10%',
-            textAlign: 'center',
-            zIndex: 3,
-            pointerEvents: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '1.2rem',
+            inset: 0,
+            background: 'linear-gradient(135deg, rgba(26, 21, 16, 0.72) 0%, rgba(20, 16, 13, 0.85) 100%)',
+          }} />
+        </div>
+
+        {/* 2. EXPOSED TEXT CONTENT PANELS (BEHIND SLIDING PANEL) */}
+        {/* Left Welcome (Revealed when panel slides to the right / register mode) */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          width: '48%',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '2rem',
+          zIndex: 2,
+          pointerEvents: 'none',
+          opacity: mode === 'register' ? 1 : 0,
+          transform: mode === 'register' ? 'translateX(0px)' : 'translateX(-20px)',
+          transition: 'opacity 500ms ease, transform 500ms ease',
+        }}>
+          <h1 style={{
+            fontFamily: 'var(--font-display)', fontSize: '2.5rem', fontWeight: 900, color: '#fff',
+            letterSpacing: '0.2em', textShadow: '0 4px 20px rgba(0,0,0,0.5)', margin: '0 0 1rem', paddingLeft: '0.2em'
           }}>
-            <h1 style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '2.8rem',
-              fontWeight: 900,
-              color: '#fff',
-              letterSpacing: '0.3em',
-              textShadow: '0 4px 20px rgba(26,21,16,0.4)',
-              margin: 0,
-              paddingLeft: '0.3em',
-            }}>
-              WELCOME
-            </h1>
-            <div style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: '1.3rem',
-              fontWeight: 800,
-              color: '#fff',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              background: 'rgba(26,21,16,0.45)',
-              padding: '0.4rem 1.2rem',
-              borderRadius: 9999,
-              backdropFilter: 'blur(8px)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            }}>
-              🐾 PawMart
-            </div>
-            <p style={{
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              maxWidth: 240,
-              lineHeight: 1.5,
-              textShadow: '0 1px 8px rgba(0,0,0,0.2)',
-              margin: 0,
-            }}>
-              Premium supplies for happy pets and happy homes.
-            </p>
+            WELCOME
+          </h1>
+          <div style={{
+            fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 800, color: '#fff',
+            display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(26,21,16,0.65)',
+            padding: '0.4rem 1.2rem', borderRadius: 9999, backdropFilter: 'blur(8px)', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+          }}>
+            🐾 PawMart
           </div>
+          <p style={{
+            color: 'rgba(255,255,255,0.85)', fontSize: '0.82rem', fontWeight: 600, maxWidth: 220,
+            lineHeight: 1.5, textShadow: '0 1px 8px rgba(0,0,0,0.3)', margin: '1rem 0 0', textAlign: 'center'
+          }}>
+            Create an account to track your orders, earn PawPoints, and play the Daily Spin Wheel!
+          </p>
+        </div>
 
-          {/* Premium Wavy Divider Curve Overlay (Always positioned dynamically on the border side) */}
-          <svg
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              right: mode === 'register' ? 'auto' : -1,
-              left: mode === 'register' ? -1 : 'auto',
-              width: '45px',
-              height: '100%',
-              fill: '#261e17', // Matches dark brand charcoal color of form panel
-              zIndex: 4,
-              transform: mode === 'register' ? 'scaleX(-1)' : 'none',
-              transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1)',
-              display: 'block',
-            }}
-          >
-            <path d="M0,0 Q35,50 0,100 L100,100 L100,0 Z" />
-          </svg>
-        </motion.div>
+        {/* Right Welcome (Revealed when panel slides to the left / login/forgot-password mode) */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          right: 0,
+          width: '48%',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '2rem',
+          zIndex: 2,
+          pointerEvents: 'none',
+          opacity: mode !== 'register' ? 1 : 0,
+          transform: mode !== 'register' ? 'translateX(0px)' : 'translateX(20px)',
+          transition: 'opacity 500ms ease, transform 500ms ease',
+        }}>
+          <h1 style={{
+            fontFamily: 'var(--font-display)', fontSize: '2.5rem', fontWeight: 900, color: '#fff',
+            letterSpacing: '0.2em', textShadow: '0 4px 20px rgba(0,0,0,0.5)', margin: '0 0 1rem', paddingLeft: '0.2em'
+          }}>
+            HELLO!
+          </h1>
+          <div style={{
+            fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 800, color: '#fff',
+            display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(26,21,16,0.65)',
+            padding: '0.4rem 1.2rem', borderRadius: 9999, backdropFilter: 'blur(8px)', boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+          }}>
+            🐾 PawMart
+          </div>
+          <p style={{
+            color: 'rgba(255,255,255,0.85)', fontSize: '0.82rem', fontWeight: 600, maxWidth: 220,
+            lineHeight: 1.5, textShadow: '0 1px 8px rgba(0,0,0,0.3)', margin: '1rem 0 0', textAlign: 'center'
+          }}>
+            Sign in to access premium organic supplies, cozy pet furniture, and special member coupons!
+          </p>
+        </div>
 
-        {/* ── FORM PANEL ── */}
+        {/* 3. SLIDING GLASSMORPHIC FORM PANEL */}
         <motion.div
-          layout
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          animate={{
+            x: mode === 'register' ? '92.3%' : '0%',
+          }}
+          transition={{ type: 'spring', stiffness: 90, damping: 17 }}
           style={{
-            flex: '0 0 52%', // Stable fixed width!
-            background: 'linear-gradient(135deg, #261e17 0%, #15110d 100%)',
-            padding: mode === 'register' ? '2.25rem 3rem' : '3rem 3.5rem',
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            width: '52%',
+            height: '100%',
+            background: 'rgba(28, 22, 17, 0.76)',
+            backdropFilter: 'blur(20px)',
+            borderRight: mode === 'register' ? 'none' : '1px solid rgba(255,255,255,0.08)',
+            borderLeft: mode === 'register' ? '1px solid rgba(255,255,255,0.08)' : 'none',
+            padding: mode === 'register' ? '1.8rem 2.8rem' : '2.5rem 3.5rem',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
-            position: 'relative',
             zIndex: 10,
-            height: '100%',
+            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.4)',
           }}
         >
-          {/* Animated Form Content Container */}
           <div style={{
             filter: isTransitioning ? 'blur(10px)' : 'blur(0px)',
             opacity: isTransitioning ? 0 : 1,
-            transform: isTransitioning ? 'translateY(8px) scale(0.98)' : 'translateY(0px) scale(1)',
-            transition: 'all 250ms ease-in-out',
+            transform: isTransitioning ? 'translateY(6px) scale(0.98)' : 'translateY(0px) scale(1)',
+            transition: 'all 200ms ease-in-out',
             display: 'flex',
             flexDirection: 'column',
-            height: '100%',
+            gap: '0.8rem',
           }}>
             {/* Header Titles */}
-            <div style={{ marginBottom: mode === 'register' ? '0.75rem' : '1.25rem' }}>
+            <div style={{ marginBottom: '1rem' }}>
               <h2 style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: '2rem',
+                fontSize: '1.85rem',
                 fontWeight: 800,
                 color: '#fff',
-                margin: '0 0 0.3rem',
-                letterSpacing: '-0.01em',
+                margin: '0 0 0.25rem',
               }}>
                 {mode === 'login' && 'Welcome Back! 🐾'}
-                {mode === 'register' && 'Hello!'}
-                {mode === 'forgot' && 'Reset Password 🐾'}
+                {mode === 'register' && 'Hello Friend! 🐾'}
+                {mode === 'forgot-password' && 'Reset Password 🐾'}
               </h2>
               <p style={{
-                fontSize: '0.92rem',
+                fontSize: '0.85rem',
                 color: 'rgba(255,255,255,0.7)',
                 margin: 0,
                 fontWeight: 500,
               }}>
-                {mode === 'login' && 'We are glad to see you :)'}
-                {mode === 'register' && 'We are glad to see you :)'}
-                {mode === 'forgot' && 'Enter your email to receive an OTP verification code'}
+                {mode === 'login' && 'Sign in using your email and password'}
+                {mode === 'register' && (otpStep === 'email' ? 'Create a secure client profile' : `Enter code sent to ${email}`)}
+                {mode === 'forgot-password' && (otpStep === 'email' ? 'Send a recovery verification OTP' : `Enter OTP and set new password`)}
               </p>
             </div>
-
-            {/* Social Logins (Only shown in Login and Register modes) */}
-            {mode !== 'forgot' && (
-              <div style={{
-                display: 'flex',
-                gap: '0.75rem',
-                marginBottom: mode === 'register' ? '1rem' : '1.5rem',
-                alignItems: 'center',
-              }}>
-                <button
-                  type="button"
-                  style={{
-                    flex: 1.8,
-                    padding: '0.65rem 1rem',
-                    borderRadius: 24,
-                    border: '1.5px solid rgba(255,255,255,0.12)',
-                    background: 'rgba(255,255,255,0.05)',
-                    color: '#fff',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.4rem',
-                    transition: 'all 200ms ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                    e.currentTarget.style.borderColor = 'rgba(249,115,22,0.4)';
-                    e.currentTarget.style.transform = 'scale(1.02)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                    e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-                    e.currentTarget.style.transform = 'scale(1)';
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-                  </svg>
-                  Sign in with Google
-                </button>
-                
-                {['f', 't'].map((social) => (
-                  <button
-                    key={social}
-                    type="button"
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 19,
-                      border: '1.5px solid rgba(255,255,255,0.12)',
-                      background: 'rgba(255,255,255,0.05)',
-                      color: '#fff',
-                      fontSize: '0.85rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'all 200ms ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                      e.currentTarget.style.borderColor = 'rgba(249,115,22,0.4)';
-                      e.currentTarget.style.transform = 'scale(1.05)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-                      e.currentTarget.style.transform = 'scale(1)';
-                    }}
-                  >
-                    {social === 'f' ? 'f' : 't'}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Form Divider */}
-            {mode !== 'forgot' && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '1rem',
-                margin: mode === 'register' ? '0 0 1rem' : '0 0 1.25rem',
-              }}>
-                <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
-                <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Or</span>
-                <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.06)' }} />
-              </div>
-            )}
 
             {/* Error or Success Alerts */}
             {error && (
               <div style={{
-                background: 'rgba(239, 68, 68, 0.12)',
-                border: '1.5px solid rgba(239, 68, 68, 0.2)',
-                borderRadius: 14,
-                padding: '0.5rem 0.9rem',
-                color: '#fca5a5',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                marginBottom: '0.75rem',
+                background: 'rgba(239, 68, 68, 0.12)', border: '1.5px solid rgba(239, 68, 68, 0.2)',
+                borderRadius: 14, padding: '0.5rem 0.9rem', color: '#fca5a5', fontSize: '0.78rem',
+                fontWeight: 600, marginBottom: '0.75rem',
               }}>
                 ⚠️ {error}
               </div>
             )}
             {successMsg && (
               <div style={{
-                background: 'rgba(34, 197, 94, 0.12)',
-                border: '1.5px solid rgba(34, 197, 94, 0.2)',
-                borderRadius: 14,
-                padding: '0.5rem 0.9rem',
-                color: '#86efac',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                marginBottom: '0.75rem',
+                background: 'rgba(34, 197, 94, 0.12)', border: '1.5px solid rgba(34, 197, 94, 0.2)',
+                borderRadius: 14, padding: '0.5rem 0.9rem', color: '#86efac', fontSize: '0.78rem',
+                fontWeight: 600, marginBottom: '0.75rem',
               }}>
                 ✅ {successMsg}
               </div>
             )}
 
-            {/* Authentication Form Inputs */}
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: mode === 'register' ? '0.65rem' : '0.88rem' }}>
-              
-              {/* REGISTER MODE: Name Field */}
-              {mode === 'register' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                  <label htmlFor="name" style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>Name</label>
+            {/* A. LOGIN FORM */}
+            {mode === 'login' && (
+              <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <label htmlFor="login-email" style={labelStyle}>Email Address</label>
                   <input
-                    id="name"
-                    type="text"
-                    placeholder="Enter your name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    style={inputStyle}
-                    onFocus={(e) => handleInputFocus(e)}
-                    onBlur={(e) => handleInputBlur(e)}
-                  />
-                </div>
-              )}
-
-              {/* REGISTER, LOGIN & FORGOT(Step 1) MODE: Email Field */}
-              {(mode === 'login' || mode === 'register' || (mode === 'forgot' && otpStep === 'email')) && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                  <label htmlFor="email" style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>Email Address</label>
-                  <input
-                    id="email"
+                    id="login-email"
                     type="email"
-                    placeholder="Enter your email"
+                    required
+                    placeholder="name@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     style={inputStyle}
-                    onFocus={(e) => handleInputFocus(e)}
-                    onBlur={(e) => handleInputBlur(e)}
+                    onFocus={handleInputFocus}
+                    onBlur={handleInputBlur}
                   />
                 </div>
-              )}
 
-              {/* LOGIN MODE: Password Field */}
-              {mode === 'login' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                    <label htmlFor="password" style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>Password</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label htmlFor="login-password" style={labelStyle}>Password</label>
                     <button
                       type="button"
-                      onClick={() => handleModeSwitch('forgot')}
-                      style={{
-                        marginLeft: 'auto', background: 'none', border: 'none', color: '#fb923c',
-                        fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline'
-                      }}
+                      onClick={() => handleModeSwitch('forgot-password')}
+                      style={{ background: 'none', border: 'none', color: '#fb923c', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}
                     >
-                      Forgot Password?
+                      Forgot?
                     </button>
                   </div>
                   <input
-                    id="password"
+                    id="login-password"
                     type="password"
+                    required
                     placeholder="Enter password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     style={inputStyle}
-                    onFocus={(e) => handleInputFocus(e)}
-                    onBlur={(e) => handleInputBlur(e)}
+                    onFocus={handleInputFocus}
+                    onBlur={handleInputBlur}
                   />
                 </div>
-              )}
 
-              {/* REGISTER & FORGOT(Step 2) MODE: Password Fields */}
-              {(mode === 'register' || (mode === 'forgot' && otpStep === 'code')) && (
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: mode === 'register' ? '1fr 1fr' : '1fr',
-                  gap: '0.75rem',
-                }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                    <label htmlFor="password" style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
-                      {mode === 'forgot' ? 'New Password' : 'Password'}
-                    </label>
-                    <input
-                      id="password"
-                      type="password"
-                      placeholder="xxxxxxxx"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      style={inputStyle}
-                      onFocus={(e) => handleInputFocus(e)}
-                      onBlur={(e) => handleInputBlur(e)}
-                    />
-                  </div>
+                <button type="submit" disabled={isLoading} style={submitButtonStyle(isLoading)}>
+                  {isLoading ? 'Processing...' : 'Sign In'}
+                </button>
+              </form>
+            )}
 
-                  {mode === 'register' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                      <label htmlFor="confirmPassword" style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>Repeat Password</label>
+            {/* B. REGISTER FORM */}
+            {mode === 'register' && (
+              <form
+                onSubmit={otpStep === 'email' ? handleRegisterOtpSubmit : handleRegisterVerifySubmit}
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}
+              >
+                {otpStep === 'email' ? (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <label htmlFor="reg-name" style={labelStyle}>Your Name</label>
+                        <input
+                          id="reg-name"
+                          type="text"
+                          required
+                          placeholder="Rahul"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          style={inputStyle}
+                          onFocus={handleInputFocus}
+                          onBlur={handleInputBlur}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <label htmlFor="reg-phone" style={labelStyle}>Phone Number</label>
+                        <input
+                          id="reg-phone"
+                          type="text"
+                          required
+                          placeholder="9876543210"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                          style={inputStyle}
+                          onFocus={handleInputFocus}
+                          onBlur={handleInputBlur}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <label htmlFor="reg-email" style={labelStyle}>Email Address</label>
                       <input
-                        id="confirmPassword"
-                        type="password"
-                        placeholder="xxxxxxxx"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        id="reg-email"
+                        type="email"
+                        required
+                        placeholder="rahul@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
                         style={inputStyle}
-                        onFocus={(e) => handleInputFocus(e)}
-                        onBlur={(e) => handleInputBlur(e)}
+                        onFocus={handleInputFocus}
+                        onBlur={handleInputBlur}
                       />
                     </div>
-                  )}
-                </div>
-              )}
 
-              {/* FORGOT (Step 2) MODE: OTP Code Field */}
-              {(mode === 'forgot' && otpStep === 'code') && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                    <label htmlFor="otp" style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>Enter 6-Digit OTP Code</label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSuccessMsg('New OTP code sent!');
-                        setError('');
-                      }}
-                      style={{
-                        marginLeft: 'auto', background: 'none', border: 'none', color: '#fb923c',
-                        fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline'
-                      }}
-                    >
-                      Resend Code
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <label htmlFor="reg-pass" style={labelStyle}>Password</label>
+                        <input
+                          id="reg-pass"
+                          type="password"
+                          required
+                          placeholder="Min 6 chars"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          style={inputStyle}
+                          onFocus={handleInputFocus}
+                          onBlur={handleInputBlur}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <label htmlFor="reg-confirm" style={labelStyle}>Confirm</label>
+                        <input
+                          id="reg-confirm"
+                          type="password"
+                          required
+                          placeholder="Confirm"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          style={inputStyle}
+                          onFocus={handleInputFocus}
+                          onBlur={handleInputBlur}
+                        />
+                      </div>
+                    </div>
+
+                    <button type="submit" disabled={isLoading} style={submitButtonStyle(isLoading)}>
+                      {isLoading ? 'Processing...' : 'Send Registration OTP'}
                     </button>
-                  </div>
-                  <input
-                    id="otp"
-                    type="text"
-                    maxLength={6}
-                    placeholder="e.g. 123456"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    style={{
-                      ...inputStyle,
-                      textAlign: 'center',
-                      letterSpacing: '0.3em',
-                      fontSize: '1.1rem',
-                      fontWeight: 800,
-                    }}
-                    onFocus={(e) => handleInputFocus(e)}
-                    onBlur={(e) => handleInputBlur(e)}
-                  />
-                </div>
-              )}
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <label htmlFor="reg-otp" style={labelStyle}>Enter 6-Digit OTP</label>
+                        <button
+                          type="button"
+                          onClick={handleRegisterOtpSubmit}
+                          style={{ background: 'none', border: 'none', color: '#fb923c', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          Resend Code
+                        </button>
+                      </div>
+                      <input
+                        id="reg-otp"
+                        type="text"
+                        maxLength={6}
+                        required
+                        placeholder="e.g. 123456"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                        style={{ ...inputStyle, textAlign: 'center', letterSpacing: '0.3em', fontSize: '1.05rem', fontWeight: 800 }}
+                        onFocus={handleInputFocus}
+                        onBlur={handleInputBlur}
+                      />
+                    </div>
 
-              {/* Submit Buttons */}
-              <div style={{ marginTop: '0.5rem' }}>
-                <button
-                  type="submit"
-                  style={{
-                    width: '100%',
-                    padding: '0.78rem',
-                    borderRadius: 24,
-                    border: 'none',
-                    background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', // Brand Orange gradient
-                    color: '#fff',
-                    fontFamily: 'var(--font-display)',
-                    fontWeight: 800,
-                    fontSize: '0.88rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 14px rgba(249,115,22,0.22)',
-                    transition: 'all 200ms ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(249,115,22,0.32)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(249,115,22,0.22)';
-                  }}
-                >
-                  {mode === 'login' && 'Sign In'}
-                  {mode === 'register' && 'Sign Up'}
-                  {mode === 'forgot' && (otpStep === 'email' ? 'Send Reset OTP' : 'Update Password')}
-                </button>
-              </div>
-            </form>
+                    <button type="submit" disabled={isLoading} style={submitButtonStyle(isLoading)}>
+                      {isLoading ? 'Processing...' : 'Verify & Sign Up'}
+                    </button>
+                  </>
+                )}
+              </form>
+            )}
+
+            {/* C. FORGOT PASSWORD FORM */}
+            {mode === 'forgot-password' && (
+              <form
+                onSubmit={otpStep === 'email' ? handleForgotPasswordOtpSubmit : handleForgotPasswordVerifySubmit}
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+              >
+                {otpStep === 'email' ? (
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label htmlFor="forgot-email" style={labelStyle}>Email Address</label>
+                      <input
+                        id="forgot-email"
+                        type="email"
+                        required
+                        placeholder="Enter email to retrieve OTP"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        style={inputStyle}
+                        onFocus={handleInputFocus}
+                        onBlur={handleInputBlur}
+                      />
+                    </div>
+
+                    <button type="submit" disabled={isLoading} style={submitButtonStyle(isLoading)}>
+                      {isLoading ? 'Processing...' : 'Send Recovery OTP'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <label htmlFor="forgot-otp" style={labelStyle}>6-Digit OTP Code</label>
+                      <input
+                        id="forgot-otp"
+                        type="text"
+                        maxLength={6}
+                        required
+                        placeholder="e.g. 123456"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                        style={{ ...inputStyle, textAlign: 'center', letterSpacing: '0.3em', fontSize: '1.05rem', fontWeight: 800 }}
+                        onFocus={handleInputFocus}
+                        onBlur={handleInputBlur}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <label htmlFor="forgot-pass" style={labelStyle}>New Password</label>
+                        <input
+                          id="forgot-pass"
+                          type="password"
+                          required
+                          placeholder="Min 6 chars"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          style={inputStyle}
+                          onFocus={handleInputFocus}
+                          onBlur={handleInputBlur}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <label htmlFor="forgot-confirm" style={labelStyle}>Confirm</label>
+                        <input
+                          id="forgot-confirm"
+                          type="password"
+                          required
+                          placeholder="Confirm"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          style={inputStyle}
+                          onFocus={handleInputFocus}
+                          onBlur={handleInputBlur}
+                        />
+                      </div>
+                    </div>
+
+                    <button type="submit" disabled={isLoading} style={submitButtonStyle(isLoading)}>
+                      {isLoading ? 'Processing...' : 'Verify & Reset Password'}
+                    </button>
+                  </>
+                )}
+              </form>
+            )}
 
             {/* Footer Form Toggles */}
             <div style={{
-              marginTop: 'auto',
-              paddingTop: mode === 'register' ? '1rem' : '1.5rem',
+              marginTop: '1.2rem',
+              paddingTop: '0.85rem',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: '0.5rem',
+              gap: '0.4rem',
               borderTop: '1px solid rgba(255,255,255,0.06)',
             }}>
+              {otpStep === 'code' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtpStep('email');
+                    setError('');
+                    setSuccessMsg('');
+                    setOtp('');
+                  }}
+                  style={{ ...footerLinkStyle, color: '#fb923c', fontWeight: 700 }}
+                >
+                  ← Go back
+                </button>
+              )}
+
               {mode === 'login' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleModeSwitch('register')}
-                    style={footerLinkStyle}
-                  >
-                    Don't have an account? <strong style={{ color: '#fb923c' }}>Register</strong>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleModeSwitch('forgot')}
-                    style={{ ...footerLinkStyle, fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)' }}
-                  >
-                    Forgot Password?
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={() => handleModeSwitch('register')}
+                  style={footerLinkStyle}
+                >
+                  Don't have an account? <strong style={{ color: '#fb923c' }}>Register</strong>
+                </button>
               )}
 
               {mode === 'register' && (
                 <button
                   type="button"
+                  disabled={otpStep === 'code'}
                   onClick={() => handleModeSwitch('login')}
-                  style={footerLinkStyle}
+                  style={{ ...footerLinkStyle, opacity: otpStep === 'code' ? 0.4 : 1, cursor: otpStep === 'code' ? 'not-allowed' : 'pointer' }}
                 >
                   Already have an account? <strong style={{ color: '#fb923c' }}>Login</strong>
                 </button>
               )}
 
-              {mode === 'forgot' && (
+              {mode === 'forgot-password' && (
                 <button
                   type="button"
                   onClick={() => handleModeSwitch('login')}
                   style={footerLinkStyle}
                 >
-                  Remembered your password? <strong style={{ color: '#fb923c' }}>Login</strong>
+                  Back to <strong style={{ color: '#fb923c' }}>Login</strong>
                 </button>
               )}
             </div>
-
           </div>
         </motion.div>
-      </motion.div>
+      </div>
     </div>
   );
 }
 
+// Reusable styling tokens for labels
+const labelStyle: React.CSSProperties = {
+  fontSize: '0.74rem',
+  color: 'rgba(255,255,255,0.7)',
+  fontWeight: 600,
+};
+
 // Reusable styling tokens for input boxes
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  padding: '0.68rem 1.1rem',
-  borderRadius: 24,
-  border: '1.5px solid rgba(249, 115, 22, 0.2)', // Translucent brand orange border
+  padding: '0.6rem 0.95rem',
+  borderRadius: 20,
+  border: '1.5px solid rgba(249, 115, 22, 0.2)',
   background: 'rgba(255,255,255,0.05)',
   color: '#fff',
-  fontSize: '0.85rem',
+  fontSize: '0.82rem',
   fontWeight: 500,
   outline: 'none',
   fontFamily: 'var(--font-body)',
   transition: 'all 200ms cubic-bezier(0.16, 1, 0.3, 1)',
 };
 
-const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-  e.currentTarget.style.borderColor = '#f97316'; // Brand Orange
+const handleInputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+  e.currentTarget.style.borderColor = '#f97316';
   e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-  e.currentTarget.style.boxShadow = '0 0 12px rgba(249, 115, 22, 0.25)';
+  e.currentTarget.style.boxShadow = '0 0 10px rgba(249, 115, 22, 0.2)';
 };
 
-const handleInputBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+const handleInputBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
   e.currentTarget.style.borderColor = 'rgba(249, 115, 22, 0.2)';
   e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
   e.currentTarget.style.boxShadow = 'none';
 };
 
+const submitButtonStyle = (isLoading: boolean): React.CSSProperties => ({
+  width: '100%',
+  padding: '0.7rem',
+  borderRadius: 20,
+  border: 'none',
+  background: isLoading
+    ? 'rgba(255,255,255,0.1)'
+    : 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+  color: isLoading ? 'rgba(255,255,255,0.4)' : '#fff',
+  fontFamily: 'var(--font-display)',
+  fontWeight: 800,
+  fontSize: '0.84rem',
+  cursor: isLoading ? 'not-allowed' : 'pointer',
+  boxShadow: isLoading ? 'none' : '0 4px 12px rgba(249,115,22,0.2)',
+  transition: 'all 200ms ease',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginTop: '0.3rem',
+});
+
 const footerLinkStyle: React.CSSProperties = {
   background: 'none',
   border: 'none',
   color: 'rgba(255,255,255,0.65)',
-  fontSize: '0.78rem',
+  fontSize: '0.76rem',
   cursor: 'pointer',
   fontFamily: 'var(--font-body)',
   transition: 'color 200ms ease',

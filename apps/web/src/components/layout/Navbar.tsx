@@ -48,7 +48,7 @@ const PawIcon = () => (
 export default function Navbar() {
   const itemCount = useCartStore((s) => s.itemCount());
   const toggleDrawer = useCartStore((s) => s.toggleDrawer);
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const [hoveredLink, setHoveredLink] = useState<string | null>(null);
   const [hoveredIcon, setHoveredIcon] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -313,13 +313,48 @@ export default function Navbar() {
             {/* Profile */}
             <Link
               to={isAuthenticated ? '/dashboard/orders' : '/login'}
-              style={iconBtnStyle('profile')}
+              style={{ ...iconBtnStyle('profile'), position: 'relative' }}
               onMouseEnter={() => setHoveredIcon('profile')}
               onMouseLeave={() => setHoveredIcon(null)}
             >
-              <ProfileIcon />
+              {isAuthenticated ? (
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--color-brand)',
+                      color: '#fff',
+                      fontSize: '0.68rem',
+                      fontWeight: 900,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontFamily: 'var(--font-display)',
+                      boxShadow: '0 2px 6px rgba(249,115,22,0.2)',
+                    }}
+                  >
+                    {user?.name?.[0]?.toUpperCase() || 'P'}
+                  </div>
+                  <span
+                    style={{
+                      position: 'absolute',
+                      bottom: -2,
+                      right: -2,
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      backgroundColor: '#22c55e',
+                      border: '1.5px solid #fff',
+                    }}
+                  />
+                </div>
+              ) : (
+                <ProfileIcon />
+              )}
               <span style={iconLabelStyle}>
-                {isAuthenticated ? 'Account' : 'Profile'}
+                {isAuthenticated ? 'Account' : 'Login'}
               </span>
             </Link>
           </div>

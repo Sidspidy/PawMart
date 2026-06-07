@@ -2,26 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, ShoppingCart, Trash2, Star, Tag, ShoppingBag } from 'lucide-react';
 import { useCartStore } from '../../store/cart.store';
-
-interface WishlistItem {
-  id: string;
-  name: string;
-  slug: string;
-  image: string;
-  price: number;
-  originalPrice?: number;
-  rating: number;
-  reviewCount: number;
-  badge?: string;
-  category: string;
-}
-
-const MOCK_WISHLIST: WishlistItem[] = [
-  { id: 'dog-1', name: 'Premium Grain-Free Salmon Kibble', slug: 'premium-grain-free-salmon-kibble', image: '/images/hero/dog.png', price: 1899, originalPrice: 2299, rating: 4.8, reviewCount: 124, badge: 'bestseller', category: 'Dogs' },
-  { id: 'cat-1', name: 'Interactive Multi-Level Scratch Tree', slug: 'interactive-multi-level-scratch-tree', image: '/images/hero/kitten.png', price: 4599, originalPrice: 5499, rating: 4.7, reviewCount: 92, badge: 'bestseller', category: 'Cats' },
-  { id: 'dog-2', name: 'Orthopedic Memory Foam Pet Bed', slug: 'orthopedic-memory-foam-pet-bed', image: '/images/hero/puppy.png', price: 3499, originalPrice: 4299, rating: 4.9, reviewCount: 88, badge: 'sale', category: 'Dogs' },
-  { id: 'fish-1', name: 'Dynamic LED Curved Glass Aquarium Kit', slug: 'dynamic-led-curved-glass-aquarium-kit', image: '/images/hero/fish.png', price: 6499, originalPrice: 7999, rating: 4.8, reviewCount: 39, badge: 'bestseller', category: 'Fish' },
-];
+import { useWishlistStore, WishlistItem } from '../../store/wishlist.store';
+import { useToastStore } from '../../store/toast.store';
 
 const BADGE_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
   bestseller: { label: 'Bestseller', bg: '#fff7ed', color: '#c2410c' },
@@ -30,12 +12,14 @@ const BADGE_CONFIG: Record<string, { label: string; bg: string; color: string }>
 };
 
 export default function Wishlist() {
-  const [items, setItems] = useState<WishlistItem[]>(MOCK_WISHLIST);
+  const { items, removeItem } = useWishlistStore();
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const { addItem } = useCartStore();
+  const { addToast } = useToastStore();
 
-  const handleRemove = (id: string) => {
-    setItems(prev => prev.filter(i => i.id !== id));
+  const handleRemove = (id: string, name: string) => {
+    removeItem(id);
+    addToast(`Removed "${name}" from wishlist`, 'info');
   };
 
   const handleAddToCart = (item: WishlistItem) => {
@@ -47,6 +31,7 @@ export default function Wishlist() {
       quantity: 1,
       price: item.price,
     });
+    addToast(`Added "${item.name}" to cart`, 'success');
     setAddedIds(prev => new Set(prev).add(item.id));
     setTimeout(() => {
       setAddedIds(prev => {
@@ -171,7 +156,7 @@ export default function Wishlist() {
                       </div>
                     </div>
                   )}
-                  <button style={s.removeBtn} onClick={() => handleRemove(item.id)}>
+                  <button style={s.removeBtn} onClick={() => handleRemove(item.id, item.name)}>
                     <Trash2 size={14} />
                   </button>
                 </div>

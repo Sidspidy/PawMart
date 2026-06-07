@@ -6,9 +6,9 @@ import { seedAll } from './utils/seed';
 const startServer = async (): Promise<void> => {
   // Validate env (crashes if invalid — better than silent failure)
   await connectDB();
-  
+
   // Seed all required initial data (superadmin, categories, products, coupons)
-  await seedAll();
+  // await seedAll();
 
   const server = app.listen(env.PORT, () => {
     console.log(`\n🐾  PawMart API`);

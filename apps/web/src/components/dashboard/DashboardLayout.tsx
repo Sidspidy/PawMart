@@ -143,7 +143,7 @@ export default function DashboardLayout() {
             <div style={s.profileEmail}>{displayEmail}</div>
             <div style={s.pointsBadge}>
               <Star size={12} fill="#f97316" color="#f97316" />
-              1,250 PawPoints
+              {(user?.pointsBalance || 0).toLocaleString('en-IN')} PawPoints
             </div>
           </div>
 

@@ -1,9 +1,13 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Suspense, lazy, useEffect } from 'react';
+import { useAuthStore } from './store/auth.store';
+import { api } from './api';
 
 // Layouts
 import PageWrapper from './components/layout/PageWrapper';
 import DashboardLayout from './components/dashboard/DashboardLayout';
+import ToastContainer from './components/layout/Toast';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
 // Eagerly loaded pages
 import Home from './pages/Home';
@@ -52,9 +56,24 @@ const PageLoader = () => (
 );
 
 export default function App() {
+  const { isAuthenticated, updateUser } = useAuthStore();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      api.get('/auth/me').then(res => {
+        if (res.data?.success && res.data.data) {
+          updateUser(res.data.data);
+        }
+      }).catch(err => {
+        console.error('Failed to sync user profile:', err);
+      });
+    }
+  }, [isAuthenticated, updateUser]);
+
   return (
     <Suspense fallback={<PageLoader />}>
       <ScrollToTop />
+      <ToastContainer />
       <Routes>
         {/* Auth standalone routes (no Navbar/Footer) */}
         <Route path="/login"    element={<Login />} />
@@ -76,20 +95,24 @@ export default function App() {
 
           {/* Cart & Checkout */}
           <Route path="/cart"                   element={<Cart />} />
-          <Route path="/checkout/address"       element={<AddressPage />} />
-          <Route path="/checkout/payment"       element={<PaymentPage />} />
-          <Route path="/checkout/confirmation"  element={<OrderConfirmationPage />} />
 
-          {/* Customer Dashboard — shared sidebar layout */}
-          <Route path="/dashboard" element={<DashboardLayout />}>
-            <Route index element={<Navigate to="/dashboard/orders" replace />} />
-            <Route path="orders"          element={<DashOrders />} />
-            <Route path="orders/:orderId" element={<DashOrderDetail />} />
-            <Route path="wishlist"        element={<DashWishlist />} />
-            <Route path="profile"         element={<DashProfile />} />
-            <Route path="points"          element={<DashPoints />} />
-            <Route path="spin"            element={<DashSpin />} />
-            <Route path="coupons"         element={<DashCoupons />} />
+          {/* Secured Routes */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/checkout/address"       element={<AddressPage />} />
+            <Route path="/checkout/payment"       element={<PaymentPage />} />
+            <Route path="/checkout/confirmation"  element={<OrderConfirmationPage />} />
+
+            {/* Customer Dashboard — shared sidebar layout */}
+            <Route path="/dashboard" element={<DashboardLayout />}>
+              <Route index element={<Navigate to="/dashboard/orders" replace />} />
+              <Route path="orders"          element={<DashOrders />} />
+              <Route path="orders/:orderId" element={<DashOrderDetail />} />
+              <Route path="wishlist"        element={<DashWishlist />} />
+              <Route path="profile"         element={<DashProfile />} />
+              <Route path="points"          element={<DashPoints />} />
+              <Route path="spin"            element={<DashSpin />} />
+              <Route path="coupons"         element={<DashCoupons />} />
+            </Route>
           </Route>
 
           {/* Fallback */}

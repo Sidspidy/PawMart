@@ -1,4 +1,4 @@
-import { User } from '../models/User.model';
+import { Customer } from '../models/Customer.model';
 import { Points, PointsTransactionType } from '../models/Points.model';
 import mongoose from 'mongoose';
 import { BadRequestError } from '../utils/AppError';
@@ -25,7 +25,7 @@ export const creditPoints = async (
   referenceModel?: 'Order' | 'SpinResult',
   session?: mongoose.ClientSession
 ): Promise<void> => {
-  const user = await User.findByIdAndUpdate(
+  const user = await Customer.findByIdAndUpdate(
     userId,
     { $inc: { pointsBalance: points } },
     { new: true, session }
@@ -59,7 +59,7 @@ export const debitPoints = async (
   reference?: mongoose.Types.ObjectId,
   session?: mongoose.ClientSession
 ): Promise<void> => {
-  const user = await User.findById(userId).session(session ?? null);
+  const user = await Customer.findById(userId).session(session ?? null);
   if (!user) return;
   if (user.pointsBalance < points) {
     throw new BadRequestError(`Insufficient points. Balance: ${user.pointsBalance}`);
@@ -91,6 +91,16 @@ export const rewardOrderPoints = async (
   orderId: mongoose.Types.ObjectId,
   orderTotal: number
 ): Promise<number> => {
+  // Prevent duplicate point rewards for the same order
+  const existing = await Points.findOne({
+    user: userId,
+    type: PointsTransactionType.EARNED_ORDER,
+    reference: orderId,
+  });
+  if (existing) {
+    return 0;
+  }
+
   const earned = calculateEarnedPoints(orderTotal);
   if (earned === 0) return 0;
 
@@ -106,7 +116,7 @@ export const rewardOrderPoints = async (
   // Unlock a spin attempt for every 100 points earned
   const spinsToAdd = Math.floor(earned / 100);
   if (spinsToAdd > 0) {
-    await User.findByIdAndUpdate(userId, { $inc: { totalSpins: spinsToAdd } });
+    await Customer.findByIdAndUpdate(userId, { $inc: { totalSpins: spinsToAdd } });
   }
 
   return earned;
