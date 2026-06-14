@@ -147,7 +147,7 @@ export default function Wishlist() {
                 <div style={s.imageWrap}>
                   <Link to={`/products/${item.slug}`}>
                     <img src={item.image} alt={item.name} style={s.image}
-                      onError={e => { (e.target as HTMLImageElement).src = '/images/hero/dog.png'; }} />
+                      onError={e => { (e.target as HTMLImageElement).src = '/images/placeholder.png'; }} />
                   </Link>
                   {item.badge && (
                     <div style={s.badgeWrap}>

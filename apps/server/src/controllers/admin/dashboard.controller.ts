@@ -5,6 +5,8 @@ import { Customer } from '../../models/Customer.model';
 import { Order, OrderStatus } from '../../models/Order.model';
 import { Product } from '../../models/Product.model';
 import { NotFoundError } from '../../utils/AppError';
+import { Setting } from '../../models/Setting.model';
+
 
 // GET /api/admin/dashboard/stats
 export const getDashboardStats = asyncHandler(async (_req: Request, res: Response) => {
@@ -91,3 +93,29 @@ export const toggleUserStatus = asyncHandler(async (req: Request, res: Response)
   await user.save();
   sendSuccess(res, { isActive: user.isActive }, `Customer ${user.isActive ? 'activated' : 'deactivated'}`);
 });
+
+// GET /api/admin/dashboard/settings
+export const getSettings = asyncHandler(async (_req: Request, res: Response) => {
+  let settings = await Setting.findOne();
+  if (!settings) {
+    settings = await Setting.create({});
+  }
+  sendSuccess(res, settings, 'Settings fetched');
+});
+
+// PATCH /api/admin/dashboard/settings
+export const updateSettings = asyncHandler(async (req: Request, res: Response) => {
+  let settings = await Setting.findOne();
+  if (!settings) {
+    settings = new Setting();
+  }
+  const { shopName, currency, autoEmailReceipt, maintenanceMode } = req.body;
+  if (shopName !== undefined) settings.shopName = shopName;
+  if (currency !== undefined) settings.currency = currency;
+  if (autoEmailReceipt !== undefined) settings.autoEmailReceipt = autoEmailReceipt;
+  if (maintenanceMode !== undefined) settings.maintenanceMode = maintenanceMode;
+  
+  await settings.save();
+  sendSuccess(res, settings, 'Settings updated');
+});
+

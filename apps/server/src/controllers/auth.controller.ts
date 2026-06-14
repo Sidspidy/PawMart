@@ -45,6 +45,7 @@ export const loginCustomer = asyncHandler(async (req: Request, res: Response) =>
         name: customer.name,
         email: customer.email,
         phone: customer.phone,
+        avatar: customer.avatar,
         pointsBalance: customer.pointsBalance || 0,
         totalSpins: customer.totalSpins || 0,
         role: 'customer'
@@ -101,6 +102,7 @@ export const verifyRegisterAndCreate = asyncHandler(async (req: Request, res: Re
         name: customer.name,
         email: customer.email,
         phone: customer.phone,
+        avatar: customer.avatar,
         pointsBalance: customer.pointsBalance || 0,
         totalSpins: customer.totalSpins || 0,
         role: 'customer'
@@ -217,6 +219,7 @@ export const getMe = asyncHandler(async (req: Request, res: Response) => {
       name: customer.name,
       email: customer.email,
       phone: customer.phone || '',
+      avatar: customer.avatar,
       pointsBalance: customer.pointsBalance || 0,
       totalSpins: customer.totalSpins || 0,
       role: 'customer',
@@ -242,6 +245,7 @@ export const updateMe = asyncHandler(async (req: Request, res: Response) => {
       name: updated.name,
       email: updated.email,
       phone: updated.phone || '',
+      avatar: updated.avatar,
       pointsBalance: updated.pointsBalance || 0,
       totalSpins: updated.totalSpins || 0,
       role: 'customer',

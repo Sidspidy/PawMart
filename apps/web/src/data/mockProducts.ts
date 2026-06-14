@@ -419,7 +419,7 @@ export const adaptDbProduct = (dbProduct: any): Product => {
   
   const mainImage = dbProduct.images?.find((img: any) => img.isPrimary)?.url || 
                     dbProduct.images?.[0]?.url || 
-                    'https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=400&auto=format&fit=crop';
+                    '/images/placeholder.png';
   
   const imageList = dbProduct.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [];
   if (imageList.length === 0 && mainImage) {

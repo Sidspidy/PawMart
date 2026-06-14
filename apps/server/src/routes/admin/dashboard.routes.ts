@@ -4,7 +4,9 @@ import {
   getRevenueByDate, 
   getTopProducts, 
   getCustomers, 
-  toggleUserStatus 
+  toggleUserStatus,
+  getSettings,
+  updateSettings
 } from '../../controllers/admin/dashboard.controller';
 import { authenticate } from '../../middlewares/auth.middleware';
 import { isStaff, isAdmin } from '../../middlewares/rbac.middleware';
@@ -19,4 +21,8 @@ router.get('/top-products', getTopProducts);
 router.get('/customers', getCustomers);
 router.patch('/customers/:id/toggle', isAdmin, toggleUserStatus);
 
+router.get('/settings', getSettings);
+router.patch('/settings', isAdmin, updateSettings);
+
 export default router;
+

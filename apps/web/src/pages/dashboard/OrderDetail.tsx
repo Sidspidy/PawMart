@@ -278,8 +278,8 @@ export default function OrderDetail() {
         <div style={s.cardBody}>
           {order.items.map((item, i) => (
             <div key={i} style={s.itemRow}>
-              <img src={item.productImage || '/images/hero/dog.png'} alt={item.productName} style={s.itemImg}
-                onError={e => { (e.target as HTMLImageElement).src = '/images/hero/dog.png'; }} />
+              <img src={item.productImage || '/images/placeholder.png'} alt={item.productName} style={s.itemImg}
+                onError={e => { (e.target as HTMLImageElement).src = '/images/placeholder.png'; }} />
               <div style={s.itemInfo}>
                 <div style={s.itemName}>{item.productName}</div>
                 <div style={s.itemSub}>{item.variant ? `Option: ${item.variant} · ` : ''}Qty: {item.quantity}</div>

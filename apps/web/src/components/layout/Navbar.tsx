@@ -319,24 +319,38 @@ export default function Navbar() {
             >
               {isAuthenticated ? (
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--color-brand)',
-                      color: '#fff',
-                      fontSize: '0.68rem',
-                      fontWeight: 900,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontFamily: 'var(--font-display)',
-                      boxShadow: '0 2px 6px rgba(249,115,22,0.2)',
-                    }}
-                  >
-                    {user?.name?.[0]?.toUpperCase() || 'P'}
-                  </div>
+                  {user?.avatar ? (
+                    <img
+                      src={user.avatar}
+                      alt={user.name || 'User'}
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        boxShadow: '0 2px 6px rgba(249,115,22,0.2)',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--color-brand)',
+                        color: '#fff',
+                        fontSize: '0.68rem',
+                        fontWeight: 900,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontFamily: 'var(--font-display)',
+                        boxShadow: '0 2px 6px rgba(249,115,22,0.2)',
+                      }}
+                    >
+                      {user?.name?.[0]?.toUpperCase() || 'P'}
+                    </div>
+                  )}
                   <span
                     style={{
                       position: 'absolute',

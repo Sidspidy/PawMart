@@ -22,6 +22,8 @@ export default function ProductListing() {
   const queryParam = searchParams.get('q') || '';
   const categoryParam = searchParams.get('category') || 'all';
   const subcategoryParam = searchParams.get('subcategory') || 'all';
+  const sortParam = searchParams.get('sort') || 'bestseller';
+  const saleParam = searchParams.get('sale') === 'true';
 
   // Live Database States
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
@@ -34,8 +36,8 @@ export default function ProductListing() {
   );
   const [priceRange, setPriceRange] = useState<number>(11000);
   const [minRating, setMinRating] = useState<number>(0);
-  const [onlySale, setOnlySale] = useState<boolean>(false);
-  const [sortBy, setSortBy] = useState<string>('bestseller');
+  const [onlySale, setOnlySale] = useState<boolean>(saleParam);
+  const [sortBy, setSortBy] = useState<string>(sortParam);
   const [loading, setLoading] = useState<boolean>(true);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState<boolean>(false);
 
@@ -47,7 +49,29 @@ export default function ProductListing() {
     } else {
       setSelectedSubcategories([]);
     }
-  }, [categoryParam, subcategoryParam]);
+    setSortBy(sortParam);
+    setOnlySale(saleParam);
+  }, [categoryParam, subcategoryParam, sortParam, saleParam]);
+
+  // Handle Sort Change
+  const handleSortChange = (value: string) => {
+    setSortBy(value);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('sort', value);
+    setSearchParams(newParams);
+  };
+
+  // Handle Sale Toggle
+  const handleSaleToggle = (checked: boolean) => {
+    setOnlySale(checked);
+    const newParams = new URLSearchParams(searchParams);
+    if (checked) {
+      newParams.set('sale', 'true');
+    } else {
+      newParams.delete('sale');
+    }
+    setSearchParams(newParams);
+  };
 
   // Fetch products and categories dynamically on filter/sort change
   useEffect(() => {
@@ -421,10 +445,11 @@ export default function ProductListing() {
               {/* Promo Toggles */}
               <div className="py-5" style={{ padding: '1.25rem 0 0 0' }}>
                 <label className="flex items-center gap-3 text-xs text-gray-600 cursor-pointer hover:text-orange-500 transition-colors" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: '#4a4036', cursor: 'pointer', fontWeight: 800 }}>
+
                   <input
                     type="checkbox"
                     checked={onlySale}
-                    onChange={(e) => setOnlySale(e.target.checked)}
+                    onChange={(e) => handleSaleToggle(e.target.checked)}
                     className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500 cursor-pointer"
                     style={{ height: '1rem', width: '1rem', cursor: 'pointer' }}
                   />
@@ -466,7 +491,7 @@ export default function ProductListing() {
                 <div className="relative" style={{ position: 'relative' }}>
                   <select
                     value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
+                    onChange={(e) => handleSortChange(e.target.value)}
                     className="appearance-none rounded-lg border border-gray-200 bg-white pl-4 pr-10 py-2 font-display text-xs font-bold text-gray-700 outline-none cursor-pointer hover:bg-gray-50 shadow-sm"
                     style={{
                       borderRadius: 10,
@@ -799,7 +824,7 @@ export default function ProductListing() {
               {/* Sales Toggles */}
               <div className="mb-6 pt-3 border-t border-gray-200" style={{ marginBottom: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #f3ebe1' }}>
                 <button
-                  onClick={() => setOnlySale(!onlySale)}
+                  onClick={() => handleSaleToggle(!onlySale)}
                   className={`flex w-full items-center justify-center gap-2 rounded-xl border p-4 text-xs font-extrabold transition-all ${
                     onlySale
                       ? 'bg-red-50 border-red-500 text-red-600 shadow-sm'

@@ -16,7 +16,7 @@ export const updateProfileSchema = z.object({
     .string()
     .regex(/^[6-9]\d{9}$/, 'Invalid Indian phone number')
     .optional(),
-  avatar: z.string().url().optional(),
+  avatar: z.string().optional(),
 });
 
 export const addAddressSchema = z.object({

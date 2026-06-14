@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   ShoppingBag, 
@@ -16,6 +16,7 @@ import {
   LogOut
 } from 'lucide-react';
 import ConfirmModal from '../common/ConfirmModal';
+import { apiClient } from '../../api/apiClient';
 
 interface SidebarItem {
   name: string;
@@ -29,6 +30,9 @@ interface AdminLayoutProps {
   maintenanceMode: boolean;
   onBellClick: () => void;
   onLogout?: () => void;
+  adminAvatar: string;
+  onAvatarChange: (avatar: string) => void;
+  placedCount?: number;
 }
 
 export default function AdminLayout({ 
@@ -37,11 +41,57 @@ export default function AdminLayout({
   setActiveTab,
   maintenanceMode,
   onBellClick,
-  onLogout
+  onLogout,
+  adminAvatar,
+  onAvatarChange,
+  placedCount = 0
 }: AdminLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [isAvatarSelectorOpen, setIsAvatarSelectorOpen] = useState(false);
+
+  const [searchResults, setSearchResults] = useState<{ products: any[]; orders: any[]; customers: any[] }>({
+    products: [],
+    orders: [],
+    customers: []
+  });
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+
+  // Debounced search logic for global header search input
+  useEffect(() => {
+    if (searchQuery.trim().length <= 1) {
+      setSearchResults({ products: [], orders: [], customers: [] });
+      setShowSearchDropdown(false);
+      return;
+    }
+
+    const delay = setTimeout(async () => {
+      setIsSearching(true);
+      setShowSearchDropdown(true);
+      try {
+        const query = encodeURIComponent(searchQuery.trim());
+        const [prodRes, orderRes, custRes] = await Promise.all([
+          apiClient.get(`/admin/products?q=${query}&limit=5`),
+          apiClient.get(`/admin/orders?q=${query}&limit=5`),
+          apiClient.get(`/admin/dashboard/customers?q=${query}&limit=5`)
+        ]);
+
+        setSearchResults({
+          products: prodRes?.data || [],
+          orders: orderRes?.data || [],
+          customers: custRes?.data || []
+        });
+      } catch (err) {
+        console.error('Global search error:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delay);
+  }, [searchQuery]);
 
   const menuItems: SidebarItem[] = [
     { name: 'Dashboard', icon: LayoutDashboard },
@@ -180,16 +230,109 @@ export default function AdminLayout({
             </h1>
           </div>
 
-          {/* Search bar inside header (Global Search Placeholder) */}
-          <div className="hidden md:flex items-center flex-1 max-w-sm bg-white border-2 border-white rounded-full px-5 py-2.5 gap-2.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.03),0_8px_16px_rgba(0,0,0,0.02)]">
-            <Search className="w-4 h-4 text-slate-400 shrink-0" />
-            <input 
-              type="text" 
-              placeholder="Search for products, orders, categories..."
-              className="bg-transparent border-none outline-none text-xs w-full placeholder-slate-400 text-slate-700 font-extrabold"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          {/* Search bar inside header (Global Search Wrapper) */}
+          <div className="relative hidden md:block flex-1 max-w-sm">
+            <div className="flex items-center bg-white border-2 border-white rounded-full px-5 py-2.5 gap-2.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.03),0_8px_16px_rgba(0,0,0,0.02)]">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <input 
+                type="text" 
+                placeholder="Search for products, orders, customers..."
+                className="bg-transparent border-none outline-none text-xs w-full placeholder-slate-400 text-slate-700 font-extrabold"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setShowSearchDropdown(true)}
+              />
+            </div>
+
+            {/* Global Search Dropdown Popover */}
+            {showSearchDropdown && searchQuery.trim().length > 1 && (
+              <>
+                {/* Backdrop to close dropdown on click outside */}
+                <div className="fixed inset-0 z-40" onClick={() => setShowSearchDropdown(false)} />
+                <div className="absolute left-0 right-0 mt-3 bg-[#faf6f0] border-[3px] border-[#8e78f5] rounded-3xl shadow-clay-card z-50 p-4 max-h-[380px] overflow-y-auto space-y-4">
+                  {isSearching ? (
+                    <div className="p-4 text-center text-xs font-black text-slate-400 uppercase tracking-wide">
+                      🔍 Searching database...
+                    </div>
+                  ) : (searchResults.products.length === 0 && searchResults.orders.length === 0 && searchResults.customers.length === 0) ? (
+                    <div className="p-4 text-center text-xs font-black text-slate-400 uppercase tracking-wide">
+                      📭 No results found
+                    </div>
+                  ) : (
+                    <>
+                      {/* Products section */}
+                      {searchResults.products.length > 0 && (
+                        <div>
+                          <h4 className="text-[10px] font-black text-[#8e78f5] uppercase tracking-wider mb-1 px-1">Products 📦</h4>
+                          <div className="space-y-1">
+                            {searchResults.products.map((p) => (
+                              <button
+                                key={p._id}
+                                onClick={() => {
+                                  window.dispatchEvent(new CustomEvent('admin-edit-product', { detail: p }));
+                                  setSearchQuery('');
+                                  setShowSearchDropdown(false);
+                                }}
+                                className="w-full text-left p-2 hover:bg-purple-50 rounded-xl transition-colors flex items-center justify-between text-xs font-bold text-slate-700 cursor-pointer"
+                              >
+                                <span className="truncate pr-2">{p.name}</span>
+                                <span className="text-[#8e78f5] font-black shrink-0">₹{p.basePrice}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Orders section */}
+                      {searchResults.orders.length > 0 && (
+                        <div>
+                          <h4 className="text-[10px] font-black text-[#f97316] uppercase tracking-wider mb-1 px-1">Orders 🧾</h4>
+                          <div className="space-y-1">
+                            {searchResults.orders.map((o) => (
+                              <button
+                                key={o._id}
+                                onClick={() => {
+                                  window.dispatchEvent(new CustomEvent('admin-view-order', { detail: o._id }));
+                                  setSearchQuery('');
+                                  setShowSearchDropdown(false);
+                                }}
+                                className="w-full text-left p-2 hover:bg-orange-50 rounded-xl transition-colors flex items-center justify-between text-xs font-bold text-slate-700 cursor-pointer"
+                              >
+                                <span className="font-black">{o.orderNumber}</span>
+                                <span className="text-[9px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-black uppercase tracking-wider shrink-0">{o.status}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Customers section */}
+                      {searchResults.customers.length > 0 && (
+                        <div>
+                          <h4 className="text-[10px] font-black text-rose-500 uppercase tracking-wider mb-1 px-1">Customers 👥</h4>
+                          <div className="space-y-1">
+                            {searchResults.customers.map((c) => (
+                              <button
+                                key={c._id}
+                                onClick={() => {
+                                  setActiveTab('Customers');
+                                  setSearchQuery('');
+                                  setShowSearchDropdown(false);
+                                }}
+                                className="w-full text-left p-2 hover:bg-rose-50 rounded-xl transition-colors flex flex-col text-xs font-bold text-slate-700 cursor-pointer"
+                              >
+                                <span>{c.name}</span>
+                                <span className="text-[9px] text-slate-400 font-semibold">{c.email}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Right side controls */}
@@ -210,18 +353,61 @@ export default function AdminLayout({
               title="Click to view new placed orders"
             >
               <Bell className="w-4 h-4 stroke-[2.5]" />
-              <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 rounded-full border-2 border-white text-[9px] font-black text-white flex items-center justify-center">
-                3
-              </span>
+              {placedCount > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-rose-500 rounded-full border-2 border-white text-[9px] font-black text-white flex items-center justify-center animate-bounce">
+                  {placedCount}
+                </span>
+              )}
             </button>
 
             {/* User profile picture */}
-            <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden shadow-md shrink-0 bg-purple-100">
-              <img 
-                src="/avatar.png" 
-                alt="Mia Admin Mini" 
-                className="w-full h-full object-cover"
-              />
+            <div className="relative">
+              <button 
+                onClick={() => setIsAvatarSelectorOpen(!isAvatarSelectorOpen)}
+                className="w-10 h-10 rounded-full border-2 border-white overflow-hidden shadow-md shrink-0 bg-purple-100 hover:scale-105 transition-all focus:outline-none cursor-pointer flex items-center justify-center"
+                title="Click to select admin avatar"
+              >
+                <img 
+                  src={adminAvatar} 
+                  alt="Admin Profile" 
+                  className="w-full h-full object-cover"
+                />
+              </button>
+
+              {/* Avatar Selector Dropdown */}
+              {isAvatarSelectorOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsAvatarSelectorOpen(false)} />
+                  <div className="absolute right-0 mt-2.5 w-44 bg-[#faf6f0] border-[3px] border-white rounded-2xl shadow-clay-card p-3 z-50 animate-float">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-2 pl-1 select-none">
+                      Select Avatar 🐾
+                    </span>
+                    <div className="space-y-1.5">
+                      {[
+                        { label: 'Female Owner 👩‍💼', path: '/avatar_female.png' },
+                        { label: 'Male Owner 👨‍💼', path: '/avatar_male.png' },
+                        { label: 'Cozy Puppy 🐶', path: '/avatar_pet.png' }
+                      ].map((item) => (
+                        <button
+                          key={item.path}
+                          onClick={() => {
+                            onAvatarChange(item.path);
+                            setIsAvatarSelectorOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left text-[11px] font-black transition-all cursor-pointer ${
+                            adminAvatar === item.path
+                              ? 'bg-[#8e78f5] text-white'
+                              : 'text-[#3b2b5c] hover:bg-[#8e78f5]/10'
+                          }`}
+                        >
+                          <img src={item.path} alt="" className="w-5 h-5 rounded-full border border-white shrink-0 object-cover" />
+                          <span>{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>

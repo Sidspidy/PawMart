@@ -330,7 +330,7 @@ export default function ProductDetail() {
                 style={{ height: '85%', width: '85%', objectFit: 'contain', zIndex: 1, filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.05))' }}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  target.src = 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=400&auto=format&fit=crop';
+                  target.src = '/images/placeholder.png';
                 }}
               />
             </div>
@@ -363,7 +363,7 @@ export default function ProductDetail() {
                       className="h-full w-full object-cover rounded-xl"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        target.src = 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=400&auto=format&fit=crop';
+                        target.src = '/images/placeholder.png';
                       }}
                     />
                   </button>

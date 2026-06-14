@@ -140,7 +140,7 @@ export default function BestSellers() {
                   }}
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
-                    target.src = 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=400&auto=format&fit=crop';
+                    target.src = '/images/placeholder.png';
                   }}
                 />
               </div>

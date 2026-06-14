@@ -979,10 +979,10 @@ export default function Address() {
               {items.map(item => (
                 <div key={item.sku} style={s.summaryItem}>
                   <img
-                    src={item.image || '/images/hero/dog.png'}
+                    src={item.image || '/images/placeholder.png'}
                     alt={item.name}
                     style={s.summaryItemImg}
-                    onError={(e) => { (e.target as HTMLImageElement).src = '/images/hero/dog.png'; }}
+                    onError={(e) => { (e.target as HTMLImageElement).src = '/images/placeholder.png'; }}
                   />
                   <div style={s.summaryItemInfo}>
                     <div style={s.summaryItemName}>{item.name}</div>

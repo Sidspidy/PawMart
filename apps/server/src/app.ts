@@ -19,6 +19,7 @@ import webPaymentRoutes from './routes/web/payment.routes';
 import webCouponRoutes from './routes/web/coupon.routes';
 import webPointsRoutes from './routes/web/points.routes';
 import webAddressRoutes from './routes/web/address.routes';
+import webSettingRoutes from './routes/web/setting.routes';
 
 import adminDashboardRoutes from './routes/admin/dashboard.routes';
 import adminProductRoutes from './routes/admin/product.routes';
@@ -94,6 +95,7 @@ app.use('/api/payment', webPaymentRoutes);
 app.use('/api/coupons', webCouponRoutes);
 app.use('/api/points', webPointsRoutes);
 app.use('/api/addresses', webAddressRoutes);
+app.use('/api/settings', webSettingRoutes);
 
 // ── API Routes (Admin Dashboard Management APIs) ─────────────────────────────
 app.use('/api/admin/dashboard', adminDashboardRoutes);

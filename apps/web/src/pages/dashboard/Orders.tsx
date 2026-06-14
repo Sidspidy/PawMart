@@ -339,8 +339,8 @@ export default function Orders() {
               <div style={s.orderBody}>
                 {order.items.slice(0, 2).map((item, i) => (
                   <div key={i} style={s.itemRow}>
-                    <img src={item.productImage || '/images/hero/dog.png'} alt={item.productName} style={s.itemImg}
-                      onError={e => { (e.target as HTMLImageElement).src = '/images/hero/dog.png'; }} />
+                    <img src={item.productImage || '/images/placeholder.png'} alt={item.productName} style={s.itemImg}
+                      onError={e => { (e.target as HTMLImageElement).src = '/images/placeholder.png'; }} />
                     <div style={s.itemName}>{item.productName}</div>
                     <div style={{ fontSize: '0.72rem', color: '#8a7e72', flexShrink: 0, marginRight: '0.5rem' }}>×{item.quantity}</div>
                     <div style={s.itemPrice}>₹{(item.price * item.quantity).toLocaleString('en-IN')}</div>

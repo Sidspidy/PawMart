@@ -30,6 +30,20 @@ const WALLETS = [
   { id: 'mobikwik', label: 'MobiKwik', color: '#1C3EAA' },
 ];
 
+const getGatewayBrand = (id: PaymentMethod) => {
+  switch (id) {
+    case 'razorpay':
+      return { primary: '#3399cc', light: '#eff6ff' };
+    case 'cashfree':
+      return { primary: '#00cc99', light: '#f0fdf4' };
+    case 'stripe':
+      return { primary: '#635bff', light: '#f5f4ff' };
+    case 'cod':
+    default:
+      return { primary: '#10b981', light: '#f0fdf4' };
+  }
+};
+
 export default function Payment() {
   const navigate = useNavigate();
   const { items, subtotal, clearCart } = useCartStore();
@@ -51,7 +65,7 @@ export default function Payment() {
       navigate('/checkout/address');
     }
   }, [addressString, navigate, addToast]);
-  const [method, setMethod] = useState<PaymentMethod>('stripe');
+  const [method, setMethod] = useState<PaymentMethod>('razorpay');
   const [selectedUpiApp, setSelectedUpiApp] = useState('gpay');
   const [upiId, setUpiId] = useState('');
   const [selectedBank, setSelectedBank] = useState('');
@@ -392,47 +406,59 @@ export default function Payment() {
       display: 'flex',
       flexDirection: 'column' as const,
     } as React.CSSProperties,
-    methodTab: (active: boolean) => ({
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.875rem',
-      padding: '1rem 1.5rem',
-      borderBottom: '1px solid #f0ebe4',
-      cursor: 'pointer',
-      backgroundColor: active ? '#fff7ed' : '#ffffff',
-      borderLeft: `3px solid ${active ? '#f97316' : 'transparent'}`,
-      transition: 'all 0.2s',
-    } as React.CSSProperties),
-    methodIcon: (active: boolean) => ({
-      width: '40px',
-      height: '40px',
-      borderRadius: '10px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: active ? '#fff1e6' : '#f7f2ec',
-      color: active ? '#f97316' : '#8a7e72',
-      flexShrink: 0,
-      transition: 'all 0.2s',
-    } as React.CSSProperties),
-    methodLabel: (active: boolean) => ({
-      flex: 1,
-      fontSize: '0.9rem',
-      fontWeight: active ? 700 : 500,
-      color: active ? '#2d2418' : '#8a7e72',
-      fontFamily: "'Nunito', sans-serif",
-    } as React.CSSProperties),
-    radioCircle: (active: boolean) => ({
-      width: '18px',
-      height: '18px',
-      borderRadius: '50%',
-      border: `2px solid ${active ? '#f97316' : '#e5ddd4'}`,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexShrink: 0,
-      transition: 'all 0.2s',
-    } as React.CSSProperties),
+    methodTab: (active: boolean, id: PaymentMethod) => {
+      const brand = getGatewayBrand(id);
+      return {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.875rem',
+        padding: '1rem 1.5rem',
+        borderBottom: '1px solid #f0ebe4',
+        cursor: 'pointer',
+        backgroundColor: active ? brand.light : '#ffffff',
+        borderLeft: `3px solid ${active ? brand.primary : 'transparent'}`,
+        transition: 'all 0.2s',
+      };
+    },
+    methodIcon: (active: boolean, id: PaymentMethod) => {
+      const brand = getGatewayBrand(id);
+      return {
+        width: '40px',
+        height: '40px',
+        borderRadius: '10px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: active ? `${brand.primary}18` : '#f7f2ec',
+        color: active ? brand.primary : '#8a7e72',
+        flexShrink: 0,
+        transition: 'all 0.2s',
+      };
+    },
+    methodLabel: (active: boolean, id: PaymentMethod) => {
+      const brand = getGatewayBrand(id);
+      return {
+        flex: 1,
+        fontSize: '0.9rem',
+        fontWeight: active ? 700 : 500,
+        color: active ? brand.primary : '#8a7e72',
+        fontFamily: "'Nunito', sans-serif",
+      };
+    },
+    radioCircle: (active: boolean, id: PaymentMethod) => {
+      const brand = getGatewayBrand(id);
+      return {
+        width: '18px',
+        height: '18px',
+        borderRadius: '50%',
+        border: `2px solid ${active ? brand.primary : '#e5ddd4'}`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        transition: 'all 0.2s',
+      };
+    },
     methodContent: {
       padding: '1.5rem',
     } as React.CSSProperties,
@@ -535,22 +561,25 @@ export default function Payment() {
       fontFamily: "'Nunito', sans-serif",
       cursor: 'pointer',
     } as React.CSSProperties,
-    payBtn: (loading: boolean) => ({
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '0.5rem',
-      padding: '0.85rem 2rem',
-      borderRadius: '9999px',
-      background: loading ? '#d1d5db' : 'linear-gradient(135deg, #f97316, #ea580c)',
-      color: '#ffffff',
-      fontWeight: 800,
-      fontSize: '0.95rem',
-      fontFamily: "'Nunito', sans-serif",
-      border: 'none',
-      cursor: loading ? 'not-allowed' : 'pointer',
-      boxShadow: loading ? 'none' : '0 6px 20px rgba(249,115,22,0.35)',
-      transition: 'all 0.25s',
-    } as React.CSSProperties),
+    payBtn: (loading: boolean, id: PaymentMethod) => {
+      const brand = getGatewayBrand(id);
+      return {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        padding: '0.85rem 2rem',
+        borderRadius: '9999px',
+        background: loading ? '#d1d5db' : brand.primary,
+        color: '#ffffff',
+        fontWeight: 800,
+        fontSize: '0.95rem',
+        fontFamily: "'Nunito', sans-serif",
+        border: 'none',
+        cursor: loading ? 'not-allowed' : 'pointer',
+        boxShadow: loading ? 'none' : `0 6px 20px ${brand.primary}40`,
+        transition: 'all 0.25s',
+      };
+    },
     // Summary
     summaryCard: {
       backgroundColor: '#ffffff',
@@ -708,18 +737,18 @@ export default function Payment() {
                 {/* Left: Method list */}
                 <div style={{ width: '220px', borderRight: '1px solid #f0ebe4', flexShrink: 0 }}>
                   {methodTabs.map(tab => (
-                    <div key={tab.id} style={s.methodTab(method === tab.id)} onClick={() => setMethod(tab.id)}>
-                      <div style={s.methodIcon(method === tab.id)}>{tab.icon}</div>
+                    <div key={tab.id} style={s.methodTab(method === tab.id, tab.id)} onClick={() => setMethod(tab.id)}>
+                      <div style={s.methodIcon(method === tab.id, tab.id)}>{tab.icon}</div>
                       <div style={{ flex: 1 }}>
-                        <div style={s.methodLabel(method === tab.id)}>{tab.label}</div>
+                        <div style={s.methodLabel(method === tab.id, tab.id)}>{tab.label}</div>
                         {tab.badge && (
                           <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#22c55e', backgroundColor: '#f0fdf4', padding: '1px 6px', borderRadius: '99px', display: 'inline-block', marginTop: '2px' }}>
                             {tab.badge}
                           </div>
                         )}
                       </div>
-                      <div style={s.radioCircle(method === tab.id)}>
-                        {method === tab.id && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#f97316' }} />}
+                      <div style={s.radioCircle(method === tab.id, tab.id)}>
+                        {method === tab.id && <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: getGatewayBrand(tab.id).primary }} />}
                       </div>
                     </div>
                   ))}
@@ -842,7 +871,7 @@ export default function Payment() {
                   <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#f97316', fontFamily: "'Nunito', sans-serif" }}>
                     ₹{total.toLocaleString('en-IN')}
                   </div>
-                  <button style={s.payBtn(processing)} onClick={handlePay} disabled={processing}>
+                  <button style={s.payBtn(processing, method)} onClick={handlePay} disabled={processing}>
                     {processing ? (
                       <>
                         <div style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -850,7 +879,15 @@ export default function Payment() {
                       </>
                     ) : (
                       <>
-                        <Lock size={15} /> Pay ₹{total.toLocaleString('en-IN')} <ArrowRight size={15} />
+                        <Lock size={15} />{' '}
+                        {method === 'cod'
+                          ? 'Confirm Order (COD)'
+                          : method === 'razorpay'
+                          ? `Pay via Razorpay`
+                          : method === 'cashfree'
+                          ? `Pay via Cashfree`
+                          : `Pay with Stripe`}{' '}
+                        <ArrowRight size={15} />
                       </>
                     )}
                   </button>
@@ -865,10 +902,10 @@ export default function Payment() {
               {items.map(item => (
                 <div key={item.sku} style={s.summaryItem}>
                   <img
-                    src={item.image || '/images/hero/dog.png'}
+                    src={item.image || '/images/placeholder.png'}
                     alt={item.name}
                     style={s.summaryImg}
-                    onError={(e) => { (e.target as HTMLImageElement).src = '/images/hero/dog.png'; }}
+                    onError={(e) => { (e.target as HTMLImageElement).src = '/images/placeholder.png'; }}
                   />
                   <div style={s.summaryItemName}>{item.name}</div>
                   <div style={s.summaryItemPrice}>₹{(item.price * item.quantity).toLocaleString('en-IN')}</div>

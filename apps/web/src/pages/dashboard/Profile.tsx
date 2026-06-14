@@ -72,6 +72,7 @@ export default function Profile() {
     email: user?.email || '',
     phone: user?.phone || '',
     dob: '1995-03-15',
+    avatar: user?.avatar || '',
   });
 
   useEffect(() => {
@@ -81,6 +82,7 @@ export default function Profile() {
         email: user.email || '',
         phone: user.phone || '',
         dob: '1995-03-15',
+        avatar: user.avatar || '',
       });
     }
   }, [user]);
@@ -90,7 +92,8 @@ export default function Profile() {
     try {
       const response = await api.patch('/auth/me', {
         name: profileForm.name,
-        phone: profileForm.phone
+        phone: profileForm.phone,
+        avatar: profileForm.avatar
       });
       if (response.data?.success) {
         updateUser(response.data.data);
@@ -414,8 +417,20 @@ export default function Profile() {
           {/* Avatar */}
           <div style={s.avatarSection}>
             <div style={s.avatarWrap}>
-              {profileForm.name.charAt(0).toUpperCase()}
-              <div style={s.cameraBtn}><Camera size={12} color="#8a7e72" /></div>
+              {profileForm.avatar ? (
+                <img
+                  src={profileForm.avatar}
+                  alt={profileForm.name}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                  }}
+                />
+              ) : (
+                profileForm.name.charAt(0).toUpperCase()
+              )}
             </div>
             <div>
               <div style={s.avatarName}>{profileForm.name}</div>
@@ -423,6 +438,40 @@ export default function Profile() {
               <div style={s.verifiedBadge}><Check size={10} /> Verified Account</div>
             </div>
           </div>
+
+          {editingProfile && (
+            <div style={{ marginBottom: '1.5rem', backgroundColor: '#fff7ed', border: '1.5px solid #fed7aa', padding: '1rem', borderRadius: '16px' }}>
+              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#8a7e72', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.625rem' }}>Select Profile Avatar 🐾</label>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Female Owner 👩‍💼', path: '/avatar_female.png' },
+                  { label: 'Male Owner 👨‍💼', path: '/avatar_male.png' },
+                  { label: 'Cozy Puppy 🐶', path: '/avatar_pet.png' },
+                ].map(item => (
+                  <button
+                    key={item.path}
+                    type="button"
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      padding: '0.5rem',
+                      border: `2.5px solid ${profileForm.avatar === item.path ? '#f97316' : '#e5ddd4'}`,
+                      borderRadius: '16px',
+                      backgroundColor: '#ffffff',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    onClick={() => setProfileForm(prev => ({ ...prev, avatar: item.path }))}
+                  >
+                    <img src={item.path} alt={item.label} style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#2d2418' }}>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Form grid */}
           <div style={s.formGrid}>

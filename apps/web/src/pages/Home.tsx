@@ -4,6 +4,8 @@ import ExploreTheirWorld from '../components/home/ExploreTheirWorld';
 import BestSellers from '../components/home/BestSellers';
 import LuckyPawRewards from '../components/home/LuckyPawRewards';
 import HappyCustomers from '../components/home/HappyCustomers';
+import { getProducts } from '../api/webApi';
+import { Product } from '../data/mockProducts';
 
 /* ── Top products (right side compact cards) ────────────── */
 const topProducts = [
@@ -57,11 +59,48 @@ export default function Home() {
   const [hoveredProduct, setHoveredProduct] = useState<string | null>(null);
   const [hoveredTag, setHoveredTag] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [dbTopProducts, setDbTopProducts] = useState<Product[]>([]);
+  const [loadingTop, setLoadingTop] = useState(true);
 
   useEffect(() => {
     const t = setTimeout(() => setLoaded(true), 80);
-    return () => clearTimeout(t);
+
+    let active = true;
+    const fetchTop = async () => {
+      try {
+        const res = await getProducts({ limit: 3, sort: 'rating' });
+        if (active) {
+          setDbTopProducts(res.products);
+          setLoadingTop(false);
+        }
+      } catch (err) {
+        console.error('Failed to load top products:', err);
+        if (active) setLoadingTop(false);
+      }
+    };
+    fetchTop();
+
+    return () => {
+      clearTimeout(t);
+      active = false;
+    };
   }, []);
+
+  const getCategoryTheme = (category: string) => {
+    switch (category) {
+      case 'dogs':
+        return { color: '#d97706', lightBg: '#fef3c7' };
+      case 'cats':
+        return { color: '#a855f7', lightBg: '#f3e8ff' };
+      case 'fish':
+        return { color: '#0ea5e9', lightBg: '#e0f2fe' };
+      case 'birds':
+        return { color: '#10b981', lightBg: '#ecfdf5' };
+      case 'small_pets':
+      default:
+        return { color: '#ec4899', lightBg: '#fdf2f8' };
+    }
+  };
 
   const enterAnim = (delay: number): React.CSSProperties => ({
     opacity: loaded ? 1 : 0,
@@ -123,16 +162,16 @@ export default function Home() {
               {/* Decorative pet backgrounds */}
               <div style={{
                 position: 'absolute',
-                bottom: -20,
-                right: '-2%',
-                width: '55%',
-                height: '110%',
+                bottom: -110,
+                right: '-1%',
+                width: '115%',
+                height: '170%',
                 pointerEvents: 'none',
                 zIndex: 1,
               }}>
                 <img
-                  src="/images/hero/puppy.png"
-                  alt="Puppy"
+                  src="/images/hero/pets_bg.png"
+                  alt="Pets Background"
                   style={{
                     position: 'absolute',
                     bottom: 0,
@@ -140,18 +179,6 @@ export default function Home() {
                     height: '90%',
                     objectFit: 'contain',
                     zIndex: 2,
-                  }}
-                />
-                <img
-                  src="/images/hero/kitten.png"
-                  alt="Kitten"
-                  style={{
-                    position: 'absolute',
-                    bottom: '10%',
-                    left: '10%',
-                    height: '65%',
-                    objectFit: 'contain',
-                    zIndex: 1,
                   }}
                 />
               </div>
@@ -226,7 +253,7 @@ export default function Home() {
                     Shop Now →
                   </Link>
                   <Link
-                    to="/dogs"
+                    to="/products"
                     className="btn btn-outline"
                     style={{ padding: '0.75rem 2rem', fontSize: '0.95rem', borderRadius: 9999 }}
                   >
@@ -369,92 +396,133 @@ export default function Home() {
                 Top Products
               </div>
 
-              {topProducts.map((product) => (
-                <Link
-                  key={product.id}
-                  to={product.to}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.6rem',
-                    padding: '0.5rem',
-                    borderRadius: 16,
-                    textDecoration: 'none',
-                    background: hoveredProduct === product.id ? product.lightBg : '#fafafa',
-                    border: `1.5px solid ${hoveredProduct === product.id ? product.color + '30' : 'transparent'}`,
-                    transition: 'all 250ms ease',
-                    cursor: 'pointer',
-                  }}
-                  onMouseEnter={() => setHoveredProduct(product.id)}
-                  onMouseLeave={() => setHoveredProduct(null)}
-                >
-                  {/* Small product thumbnail */}
+              {loadingTop ? (
+                // Skeleton loading state
+                [...Array(3)].map((_, idx) => (
                   <div
+                    key={idx}
+                    className="animate-pulse"
                     style={{
-                      width: 52,
-                      height: 52,
-                      borderRadius: 12,
-                      overflow: 'hidden',
-                      flexShrink: 0,
-                      background: product.lightBg,
-                    }}
-                  >
-                    <img
-                      src={product.image}
-                      alt={product.title}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        transition: 'transform 300ms ease',
-                        transform: hoveredProduct === product.id ? 'scale(1.1)' : 'scale(1)',
-                      }}
-                    />
-                  </div>
-
-                  {/* Text */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontFamily: 'var(--font-display)',
-                      fontWeight: 700,
-                      fontSize: '0.78rem',
-                      color: '#2d2418',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}>
-                      {product.title}
-                    </div>
-                    <div style={{
-                      fontSize: '0.65rem',
-                      color: '#8a7e72',
-                      marginTop: '0.05rem',
-                    }}>
-                      {product.subtitle}
-                    </div>
-                  </div>
-
-                  {/* Number badge */}
-                  <div
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: 8,
-                      background: product.lightBg,
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      fontFamily: 'var(--font-display)',
-                      fontWeight: 800,
-                      fontSize: '0.6rem',
-                      color: product.color,
-                      flexShrink: 0,
+                      gap: '0.6rem',
+                      padding: '0.5rem',
+                      borderRadius: 16,
+                      background: '#fafafa',
+                      border: '1.5px solid transparent',
+                      height: '64px',
                     }}
                   >
-                    {product.id}
+                    <div style={{ width: 52, height: 52, borderRadius: 12, backgroundColor: '#f0ebe4', flexShrink: 0 }} />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ width: '80%', height: '12px', backgroundColor: '#f0ebe4', borderRadius: '4px' }} />
+                      <div style={{ width: '50%', height: '8px', backgroundColor: '#f0ebe4', borderRadius: '4px' }} />
+                    </div>
                   </div>
-                </Link>
-              ))}
+                ))
+              ) : (
+                (dbTopProducts.length > 0 ? dbTopProducts : topProducts).map((product, idx) => {
+                  const isLive = 'slug' in product;
+                  const pid = isLive ? (product as Product).id : (product as any).id;
+                  const title = isLive ? (product as Product).name : (product as any).title;
+                  const subtitle = isLive ? ((product as Product).brand || (product as Product).subcategory) : (product as any).subtitle;
+                  const image = isLive ? (product as Product).image : (product as any).image;
+                  const targetUrl = isLive ? `/products/${(product as Product).slug}` : (product as any).to;
+                  const theme = isLive ? getCategoryTheme((product as Product).category) : { color: (product as any).color, lightBg: (product as any).lightBg };
+                  const badgeNumber = String(idx + 1).padStart(2, '0');
+
+                  return (
+                    <Link
+                      key={pid}
+                      to={targetUrl}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.6rem',
+                        padding: '0.5rem',
+                        borderRadius: 16,
+                        textDecoration: 'none',
+                        background: hoveredProduct === pid ? theme.lightBg : '#fafafa',
+                        border: `1.5px solid ${hoveredProduct === pid ? theme.color + '30' : 'transparent'}`,
+                        transition: 'all 250ms ease',
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={() => setHoveredProduct(pid)}
+                      onMouseLeave={() => setHoveredProduct(null)}
+                    >
+                      {/* Small product thumbnail */}
+                      <div
+                        style={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: 12,
+                          overflow: 'hidden',
+                          flexShrink: 0,
+                          background: theme.lightBg,
+                        }}
+                      >
+                        <img
+                          src={image}
+                          alt={title}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            transition: 'transform 300ms ease',
+                            transform: hoveredProduct === pid ? 'scale(1.1)' : 'scale(1)',
+                          }}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = '/images/placeholder.png';
+                          }}
+                        />
+                      </div>
+
+                      {/* Text */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontFamily: 'var(--font-display)',
+                          fontWeight: 700,
+                          fontSize: '0.78rem',
+                          color: '#2d2418',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}>
+                          {title}
+                        </div>
+                        <div style={{
+                          fontSize: '0.65rem',
+                          color: '#8a7e72',
+                          marginTop: '0.05rem',
+                        }}>
+                          {subtitle}
+                        </div>
+                      </div>
+
+                      {/* Number badge */}
+                      <div
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 8,
+                          background: theme.lightBg,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontFamily: 'var(--font-display)',
+                          fontWeight: 800,
+                          fontSize: '0.6rem',
+                          color: theme.color,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {badgeNumber}
+                      </div>
+                    </Link>
+                  );
+                })
+              )}
             </div>
 
             {/* Quick Links */}
@@ -482,13 +550,14 @@ export default function Home() {
               </div>
 
               {[
-                { icon: '🎁', label: 'New Arrivals', color: '#ea580c', bg: '#fff1e6' },
-                { icon: '🔥', label: 'Best Sellers', color: '#d97706', bg: '#fef3c7' },
-                { icon: '💰', label: 'Deals & Offers', color: '#16a34a', bg: '#dcfce7' },
+                { icon: '🎁', label: 'New Arrivals', color: '#ea580c', bg: '#fff1e6', to: '/products?sort=newest' },
+                { icon: '🔥', label: 'Best Sellers', color: '#d97706', bg: '#fef3c7', to: '/products?sort=bestseller' },
+                { icon: '💰', label: 'Deals & Offers', color: '#16a34a', bg: '#dcfce7', to: '/products?sale=true' },
+                { icon: '⭐', label: 'Top Rated', color: '#8a55f7', bg: '#f3e8ff', to: '/products?sort=rating' },
               ].map((item) => (
                 <Link
                   key={item.label}
-                  to="/products"
+                  to={item.to}
                   style={{
                     display: 'flex',
                     alignItems: 'center',

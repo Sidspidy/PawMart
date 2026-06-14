@@ -138,7 +138,22 @@ export default function DashboardLayout() {
         <aside style={s.sidebar}>
           {/* Profile card */}
           <div style={s.profileCard}>
-            <div style={s.avatarWrap}>{avatarLetter}</div>
+            <div style={s.avatarWrap}>
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={displayName}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                  }}
+                />
+              ) : (
+                avatarLetter
+              )}
+            </div>
             <div style={s.profileName}>{displayName}</div>
             <div style={s.profileEmail}>{displayEmail}</div>
             <div style={s.pointsBadge}>

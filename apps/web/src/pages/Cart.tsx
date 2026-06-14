@@ -530,10 +530,10 @@ export default function Cart() {
                     <div key={item.sku} style={styles.cartItem(isRemoving)}>
                       {/* Image */}
                       <img
-                        src={item.image || '/images/hero/dog.png'}
+                        src={item.image || '/images/placeholder.png'}
                         alt={item.name}
                         style={styles.itemImage}
-                        onError={(e) => { (e.target as HTMLImageElement).src = '/images/hero/dog.png'; }}
+                        onError={(e) => { (e.target as HTMLImageElement).src = '/images/placeholder.png'; }}
                       />
 
                       {/* Info */}

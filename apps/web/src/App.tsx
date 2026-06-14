@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Suspense, lazy, useEffect } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { useAuthStore } from './store/auth.store';
 import { api } from './api';
 
@@ -57,6 +57,17 @@ const PageLoader = () => (
 
 export default function App() {
   const { isAuthenticated, updateUser } = useAuthStore();
+  const [maintenance, setMaintenance] = useState(false);
+
+  useEffect(() => {
+    api.get('/settings/public').then(res => {
+      if (res.data?.success && res.data.data) {
+        setMaintenance(res.data.data.maintenanceMode === true);
+      }
+    }).catch(err => {
+      console.error('Failed to fetch store settings:', err);
+    });
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -69,6 +80,52 @@ export default function App() {
       });
     }
   }, [isAuthenticated, updateUser]);
+
+  if (maintenance) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#caaef6',
+        fontFamily: "'Nunito', sans-serif",
+        padding: '1.5rem',
+        boxSizing: 'border-box',
+      }}>
+        <div style={{
+          backgroundColor: '#faf6f0',
+          border: '4px solid #ffffff',
+          borderRadius: '40px',
+          padding: '3rem 2rem',
+          maxWidth: '500px',
+          width: '100%',
+          textAlign: 'center',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+        }}>
+          <span style={{ fontSize: '4rem', display: 'block', marginBottom: '1.5rem' }}>🐾</span>
+          <h1 style={{ fontSize: '2rem', fontWeight: 900, color: '#3b2b5c', marginBottom: '1rem', letterSpacing: '-0.03em' }}>System Upgrades in Progress</h1>
+          <p style={{ fontSize: '0.95rem', color: '#523d85', fontWeight: 700, lineHeight: '1.6', marginBottom: '2rem' }}>
+            PawMart is currently receiving some love and system upgrades to bring you a better shopping experience for your pet. We will be back online shortly!
+          </p>
+          <div style={{
+            display: 'inline-block',
+            padding: '0.625rem 1.25rem',
+            backgroundColor: '#ffdce0',
+            border: '2px solid #ffb076',
+            borderRadius: '9999px',
+            fontSize: '0.8rem',
+            color: '#c2410c',
+            fontWeight: 800,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}>
+            ⚡ Checkout & Store Temporarily Offline
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Suspense fallback={<PageLoader />}>

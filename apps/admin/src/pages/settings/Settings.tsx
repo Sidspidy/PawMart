@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings as SettingsIcon,
   Check,
@@ -11,6 +11,7 @@ import {
 import ConfirmModal from '../../components/common/ConfirmModal';
 import CustomSelect from '../../components/common/CustomSelect';
 import { useToast } from '../../components/common/Toast';
+import { apiClient } from '../../api/apiClient';
 interface SettingsProps {
   maintenanceMode: boolean;
   setMaintenanceMode: (val: boolean) => void;
@@ -20,11 +21,29 @@ export default function Settings({ maintenanceMode, setMaintenanceMode }: Settin
   const [shopName, setShopName] = useState('PawMart Storefront');
   const [currency, setCurrency] = useState('INR (₹)');
   const [autoEmail, setAutoEmail] = useState(true);
-  const { success } = useToast();
+  const { success, error } = useToast();
 
   // Custom modal states
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [pendingMaintenanceVal, setPendingMaintenanceVal] = useState<boolean | null>(null);
+
+  // Load settings on mount
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await apiClient.get('/admin/dashboard/settings');
+        if (res && res.data) {
+          setShopName(res.data.shopName || 'PawMart Storefront');
+          setCurrency(res.data.currency || 'INR (₹)');
+          setAutoEmail(res.data.autoEmailReceipt !== false);
+          setMaintenanceMode(res.data.maintenanceMode === true);
+        }
+      } catch (err) {
+        console.warn('Could not load settings from server:', err);
+      }
+    }
+    loadSettings();
+  }, [setMaintenanceMode]);
 
   const currencyOptions = [
     { value: 'INR (₹)', label: 'INR (₹) - Indian Rupee', emoji: '🪙' },
@@ -37,17 +56,38 @@ export default function Settings({ maintenanceMode, setMaintenanceMode }: Settin
     setIsConfirmOpen(true);
   };
 
-  const handleConfirmMaintenanceChange = () => {
+  const handleConfirmMaintenanceChange = async () => {
     if (pendingMaintenanceVal !== null) {
       setMaintenanceMode(pendingMaintenanceVal);
+      try {
+        await apiClient.patch('/admin/dashboard/settings', {
+          maintenanceMode: pendingMaintenanceVal
+        });
+      } catch (err) {
+        console.error('Failed to toggle maintenance mode on server:', err);
+        error('Update Failed', 'Failed to toggle maintenance mode on server.');
+      }
     }
     setIsConfirmOpen(false);
     setPendingMaintenanceVal(null);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    success('Settings Updated 🎉', 'Your store preferences have been saved successfully.');
+    try {
+      const res = await apiClient.patch('/admin/dashboard/settings', {
+        shopName,
+        currency,
+        autoEmailReceipt: autoEmail,
+        maintenanceMode
+      });
+      if (res && res.success) {
+        success('Settings Updated 🎉', 'Your store preferences have been saved successfully.');
+      }
+    } catch (err) {
+      console.error('Failed to update settings:', err);
+      error('Update Failed', 'Failed to save settings on server.');
+    }
   };
 
   return (

@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import { getProducts } from '../../api/webApi';
 import { Product } from '../../data/mockProducts';
 import { useCartStore } from '../../store/cart.store';
+import { useWishlistStore } from '../../store/wishlist.store';
+import { useToastStore } from '../../store/toast.store';
 
 const habitatMetadata = [
   {
@@ -137,7 +139,8 @@ export default function ExploreTheirWorld() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [habitatProducts, setHabitatProducts] = useState<Record<string, Product[]>>({});
   const [loading, setLoading] = useState<boolean>(true);
-  const [wishlist, setWishlist] = useState<Record<string, boolean>>({});
+  const { addItem: addToWishlist, removeItem: removeFromWishlist, isWishlisted } = useWishlistStore();
+  const { addToast } = useToastStore();
 
   const addItem = useCartStore((s) => s.addItem);
   const toggleCartDrawer = useCartStore((s) => s.toggleDrawer);
@@ -184,13 +187,33 @@ export default function ExploreTheirWorld() {
       variant: undefined
     });
     
+    addToast(`Added "${product.name}" to cart! 🐾`, 'success');
     toggleCartDrawer();
   };
 
-  const toggleWishlist = (e: React.MouseEvent, productId: string) => {
+  const handleWishlistToggle = (e: React.MouseEvent, product: Product) => {
     e.preventDefault();
     e.stopPropagation();
-    setWishlist(prev => ({ ...prev, [productId]: !prev[productId] }));
+    
+    const isWish = isWishlisted(product.id);
+    if (isWish) {
+      removeFromWishlist(product.id);
+      addToast(`Removed "${product.name}" from wishlist`, 'info');
+    } else {
+      addToWishlist({
+        id: product.id,
+        name: product.name,
+        slug: product.slug,
+        image: product.image,
+        price: product.price,
+        originalPrice: product.originalPrice,
+        rating: product.rating,
+        reviewCount: product.reviewCount,
+        badge: product.badge || undefined,
+        category: product.category
+      });
+      addToast(`Added "${product.name}" to wishlist! 🐾`, 'success');
+    }
   };
 
   const selectedHabitat = habitatMetadata.find(h => h.id === selectedId);
@@ -348,7 +371,7 @@ export default function ExploreTheirWorld() {
                   paddingRight: '6px'
                 }}>
                   {activeProducts.map((product) => {
-                    const isWish = !!wishlist[product.id];
+                    const isWish = isWishlisted(product.id);
                     return (
                       <Link
                         key={product.id}
@@ -370,7 +393,7 @@ export default function ExploreTheirWorld() {
                         {/* Image Area */}
                         <div style={{ backgroundColor: '#fff', borderRadius: '14px', height: '130px', position: 'relative', display: 'flex', alignItems: 'center', overflow: 'hidden', justifyContent: 'center' }}>
                           <button
-                            onClick={(e) => toggleWishlist(e, product.id)}
+                            onClick={(e) => handleWishlistToggle(e, product)}
                             style={{ position: 'absolute', top: '6px', right: '6px', width: '26px', height: '26px', backgroundColor: isWish ? '#ef4444' : selectedHabitat.accentColor, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', border: 'none', cursor: 'pointer', zIndex: 10, transition: 'all 200ms ease' }}
                           >
                             <svg width="13" height="13" viewBox="0 0 24 24" fill={isWish ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -387,7 +410,7 @@ export default function ExploreTheirWorld() {
                             transition={{ duration: 0.3 }}
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
-                              target.src = 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?q=80&w=400&auto=format&fit=crop';
+                              target.src = '/images/placeholder.png';
                             }}
                           />
                         </div>
