@@ -56,7 +56,7 @@ const PageLoader = () => (
 );
 
 export default function App() {
-  const { isAuthenticated, updateUser } = useAuthStore();
+  const { isAuthenticated, updateUser, logout } = useAuthStore();
   const [maintenance, setMaintenance] = useState(false);
 
   useEffect(() => {
@@ -77,9 +77,10 @@ export default function App() {
         }
       }).catch(err => {
         console.error('Failed to sync user profile:', err);
+        logout();
       });
     }
-  }, [isAuthenticated, updateUser]);
+  }, [isAuthenticated, updateUser, logout]);
 
   if (maintenance) {
     return (
